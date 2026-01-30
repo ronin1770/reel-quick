@@ -1,6 +1,62 @@
-# instagram-reel-creation
+# Reel Quick
 
-## Prerequisites (Ubuntu)
+![Project Logo](frontend/public/logo-rectangle.jpg)
+
+This repository provides an **open-source, end-to-end solution for fast and effortless Instagram Reel creation**. It enables you to upload video clips, trim them, and seamlessly merge multiple segments into a single, high-quality reel—perfect for creating engaging short-form content.
+
+The project is designed with **performance, simplicity, and automation** in mind. There are **no accounts, logins, or credentials required**, making it ideal for developers, content creators, and automation workflows.
+
+### ✨ Key Features
+
+* Upload, trim, and merge multiple video files
+* Fast, asynchronous video processing
+* Clean web-based interface for reel creation
+* No authentication or third-party dependencies
+* Completely free and open source
+
+### 🛠️ Tech Stack
+
+* **Python 3.10+** – backend and processing logic
+* **Uvicorn** – high-performance ASGI web server
+* **Next.js** – modern frontend framework
+* **ARQ (Async Redis Queue)** – background video processing
+* **FFmpeg / FFprobe** – video manipulation and metadata inspection
+
+### 🆓 License
+
+This project is **free to use**, modify, and extend under an open-source license.
+
+## 💡 Why I Created This Repository
+
+I’m a **backend developer and DevOps engineer**, and I run a motivation-themed Instagram page (**@motivation_nitrous**). Creating content for the page typically involves stitching together multiple video clips to produce short, engaging reels.
+
+Initially, I handled this workflow using **JSON configuration files in VS Code**. While functional, the process quickly became **time-consuming and inefficient**. Each reel required manually selecting files, copying paths, editing JSON structures, and fine-tuning scene boundaries to get the desired result. As content volume grew, this approach no longer scaled.
+
+This repository was created to **automate and streamline the reel-creation workflow**, replacing repetitive manual steps with a faster, more intuitive system—without sacrificing flexibility or control.
+
+---
+
+## 🚧 Current Status
+
+* ✅ **Backend API (FastAPI)** — completed
+* ✅ **Frontend (Next.js)** — core video creation workflow implemented
+* ⚠️ **Background Worker (ARQ-based)** — currently under active development
+
+---
+
+## 🗺️ Roadmap
+
+Planned features and enhancements include:
+
+* Bulk video creation from a single directory or input path
+* Support for **image-based posts** (static Instagram content)
+* GPT-powered text generation for Instagram image posts (via API key)
+* Custom video transitions and effects between scenes
+* In-browser image editing tools (crop, rotate, annotate, filters)
+* Webhook support for automation and external integrations
+
+
+## Prerequisites (Ubuntu/Debian)
 
 ```bash
 sudo apt update
