@@ -89,7 +89,7 @@ def _build_processing_payload(
 
 
 async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
-    logger = get_logger()
+    logger = get_logger(log_path="./log/arq.log", name="instagram_reel_creation_arq")
     db = get_db()
 
     video = db.videos.find_one({"video_id": video_id})

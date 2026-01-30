@@ -59,6 +59,9 @@ export default function RootLayout({
                 <Link className="app-nav__link" href="/create_video">
                   Create
                 </Link>
+                <Link className="app-nav__link" href="/videos">
+                  Videos
+                </Link>
               </nav>
               <div className="app-header__actions">
                 <Link

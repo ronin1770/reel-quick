@@ -20,8 +20,8 @@ export default function Home() {
             <Link className="neon-button neon-button-primary" href="/create_video">
               Create Video
             </Link>
-            <Link className="neon-button neon-button-ghost" href="/create_video">
-              View Workflow
+            <Link className="neon-button neon-button-ghost" href="/videos">
+              View Videos
             </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">

@@ -8,17 +8,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, constr
 
-# This file contains the model for the videos created by the client
-# It should be contain following data points
-# custom video_id (VARCHAR)
-# video_title
-# video_size
-# video_introduction
-# creation_time
-# modification_time
-# active (BOOLEAN)
-# video tags
-
 VIDEO_COLLECTION = "videos"
 
 
@@ -26,12 +15,17 @@ VIDEO_COLLECTION = "videos"
 class VideoModel:
     video_id: str
     video_title: str
-    video_size: Optional[int] = None
+
+    # NOTE: In your DB / API responses this is often a duration string like "00:00:06".
+    # So keep it as Optional[str] to avoid response_model validation failures.
+    video_size: Optional[str] = None
+
     video_introduction: Optional[str] = None
     creation_time: datetime = field(default_factory=datetime.utcnow)
     modification_time: datetime = field(default_factory=datetime.utcnow)
     active: bool = True
     video_tags: List[str] = field(default_factory=list)
+
     status: str = "created"
     output_file_location: Optional[str] = None
     job_id: Optional[str] = None
@@ -74,7 +68,7 @@ class VideoModel:
 class VideoSchema(BaseModel):
     video_id: str
     video_title: str
-    video_size: Optional[int] = None
+    video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     creation_time: datetime = Field(default_factory=datetime.utcnow)
     modification_time: datetime = Field(default_factory=datetime.utcnow)
@@ -88,15 +82,16 @@ class VideoSchema(BaseModel):
 
 class VideoCreate(BaseModel):
     video_title: constr(strip_whitespace=True, min_length=1)
-    video_size: Optional[int] = None
+    video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     active: Optional[bool] = None
     video_tags: Optional[List[str]] = None
 
 
 class VideoUpdate(BaseModel):
-    video_title: constr(strip_whitespace=True, min_length=1)
-    video_size: Optional[int] = None
+    # PATCH should be partial updates, so everything here should be Optional.
+    video_title: Optional[constr(strip_whitespace=True, min_length=1)] = None
+    video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     active: Optional[bool] = None
     video_tags: Optional[List[str]] = None

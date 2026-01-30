@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type VideoPart = {
@@ -67,6 +68,7 @@ const getErrorMessage = async (response: Response) => {
 };
 
 export default function CreateVideoPage() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -382,6 +384,8 @@ export default function CreateVideoPage() {
       } else {
         setStatusMessage("Video queued.");
       }
+
+      router.push("/videos");
     } catch (error) {
       setErrorMessage(
         error instanceof Error

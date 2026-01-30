@@ -29,24 +29,17 @@ from models.video_part_model import (
 )
 
 app = FastAPI()
-logger = get_logger()
+logger = get_logger(log_path="./log/fastapi.log", name="instagram_reel_creation_fastapi")
 
 load_dotenv(find_dotenv())
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 UPLOAD_FILES_LOCATION = os.getenv("UPLOAD_FILES_LOCATION", "./uploads")
 
 
-def _parse_origins(value: str) -> List[str]:
-    return [origin.strip() for origin in value.split(",") if origin.strip()]
-
-
-allowed_origins = _parse_origins(
-    os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or ["*"],
-    allow_credentials=bool(allowed_origins),
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -186,9 +179,16 @@ def create_video(payload: VideoCreate) -> Dict[str, Any]:
 
 @app.get("/videos", response_model=List[VideoSchema])
 def list_videos() -> List[Dict[str, Any]]:
-    db = get_db()
-    docs = [_serialize(doc) for doc in db.videos.find({})]
-    return docs
+    print(f"List Vides")
+    try:
+        db = get_db()
+        docs = [_serialize(doc) for doc in db.videos.find({})]
+        logger.info(f"Documents length: {len(docs)}\n{docs}")
+        return docs
+    except Exception as exc:
+        print(f"Exception is: {str(exc)}")
+        logger.info("Failed to list videos: %s", exc)
+        raise HTTPException(status_code=500, detail="Unable to list videos") from exc
 
 
 @app.get("/videos/{video_id}", response_model=VideoSchema)

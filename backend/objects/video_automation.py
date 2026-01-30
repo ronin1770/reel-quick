@@ -166,7 +166,11 @@ class VideoAutomation:
     
     #This method takes in the json object and creates mapping for video
     def read_video_config(self):
-        file_path = INPUT_FOLDER + self.input_json_file
+        # Support absolute paths (like temp files) while keeping legacy INPUT_FOLDER behavior.
+        if os.path.isabs(self.input_json_file) or os.path.exists(self.input_json_file):
+            file_path = self.input_json_file
+        else:
+            file_path = os.path.join(INPUT_FOLDER, self.input_json_file)
 
         try:
             with open(file_path, 'r') as file:
