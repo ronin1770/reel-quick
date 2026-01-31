@@ -78,6 +78,7 @@ export default function VideoList() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({});
 
   const fetchVideos = useCallback(async () => {
     setIsLoading(true);
@@ -100,6 +101,37 @@ export default function VideoList() {
   useEffect(() => {
     fetchVideos();
   }, [fetchVideos]);
+
+  const handleDelete = useCallback(
+    async (videoId: string) => {
+      const confirmed = window.confirm(
+        "Delete this video? This removes the video record and associated files."
+      );
+      if (!confirmed) return;
+
+      setDeleting((prev) => ({ ...prev, [videoId]: true }));
+      setError(null);
+
+      try {
+        const response = await fetch(`${API_BASE}/videos/${videoId}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error(`Unable to delete video (${response.status})`);
+        }
+        setVideos((prev) => prev.filter((video) => video.video_id !== videoId));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to delete video.");
+      } finally {
+        setDeleting((prev) => {
+          const next = { ...prev };
+          delete next[videoId];
+          return next;
+        });
+      }
+    },
+    [API_BASE]
+  );
 
   const grouped = useMemo(() => {
     const created: VideoRecord[] = [];
@@ -161,157 +193,106 @@ export default function VideoList() {
         )}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="neon-panel rounded-3xl p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-soft">
-                Created
-              </p>
-              <p className="text-xs text-muted">
-                Fresh videos waiting to be processed.
-              </p>
-            </div>
-            <span className="neon-chip">{grouped.created.length}</span>
+      <section className="neon-panel rounded-3xl p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-soft">
+              All videos
+            </p>
+            <p className="text-xs text-muted">
+              Sorted by the most recent update.
+            </p>
           </div>
-          <div className="mt-4 space-y-3">
-            {grouped.created.length === 0 && (
-              <p className="text-sm text-soft">
-                {isLoading ? "Loading videos..." : "No created videos yet."}
-              </p>
-            )}
-            {grouped.created.map((video) => (
-              <article
-                key={video.video_id}
-                className="neon-card rounded-2xl p-4 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold">
-                      {video.video_title || "Untitled video"}
-                    </p>
-                    <p className="text-xs text-soft">ID: {video.video_id}</p>
-                  </div>
-                  <StatusPill status={video.status} />
-                </div>
-                {video.video_introduction && (
-                  <p className="mt-2 text-xs text-muted">
-                    {video.video_introduction}
-                  </p>
-                )}
-                <p className="mt-3 text-xs text-soft">
-                  Updated {formatDateTime(video.modification_time)}
-                </p>
-              </article>
-            ))}
+          <div className="flex flex-wrap gap-2 text-xs text-muted">
+            <span className="neon-chip">{grouped.created.length} created</span>
+            <span className="neon-chip">
+              {grouped.attempted.length} attempted
+            </span>
+            <span className="neon-chip">{grouped.failed.length} failed</span>
           </div>
-        </section>
+        </div>
 
-        <section className="neon-panel rounded-3xl p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-soft">
-                Attempted
-              </p>
-              <p className="text-xs text-muted">
-                Queued, processing, or completed runs.
-              </p>
-            </div>
-            <span className="neon-chip">{grouped.attempted.length}</span>
-          </div>
-          <div className="mt-4 space-y-3">
-            {grouped.attempted.length === 0 && (
-              <p className="text-sm text-soft">
-                {isLoading ? "Loading videos..." : "No attempted videos yet."}
-              </p>
-            )}
-            {grouped.attempted.map((video) => (
-              <article
-                key={video.video_id}
-                className="neon-card rounded-2xl p-4 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold">
-                      {video.video_title || "Untitled video"}
-                    </p>
-                    <p className="text-xs text-soft">ID: {video.video_id}</p>
-                  </div>
-                  <StatusPill status={video.status} />
-                </div>
-                {video.video_introduction && (
-                  <p className="mt-2 text-xs text-muted">
-                    {video.video_introduction}
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-                  {video.video_size && (
-                    <span className="neon-chip">
-                      Size: {String(video.video_size)}
-                    </span>
-                  )}
-                  {video.output_file_location && (
-                    <span
-                      className="neon-chip max-w-[220px] truncate"
-                      title={video.output_file_location}
-                    >
-                      Output: {video.output_file_location}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-soft">
-                  Updated {formatDateTime(video.modification_time)}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="neon-panel rounded-3xl p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-soft">
-                Failed
-              </p>
-              <p className="text-xs text-muted">
-                Runs that need attention or a retry.
-              </p>
-            </div>
-            <span className="neon-chip">{grouped.failed.length}</span>
-          </div>
-          <div className="mt-4 space-y-3">
-            {grouped.failed.length === 0 && (
-              <p className="text-sm text-soft">
-                {isLoading ? "Loading videos..." : "No failures yet."}
-              </p>
-            )}
-            {grouped.failed.map((video) => (
-              <article
-                key={video.video_id}
-                className="neon-card rounded-2xl p-4 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold">
-                      {video.video_title || "Untitled video"}
-                    </p>
-                    <p className="text-xs text-soft">ID: {video.video_id}</p>
-                  </div>
-                  <StatusPill status={video.status} />
-                </div>
-                {video.error_reason && (
-                  <p className="mt-2 text-xs text-rose-200">
-                    Error: {video.error_reason}
-                  </p>
-                )}
-                <p className="mt-3 text-xs text-soft">
-                  Updated {formatDateTime(video.modification_time)}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
+        <div className="mt-5 overflow-x-auto">
+          {videos.length === 0 ? (
+            <p className="text-sm text-soft">
+              {isLoading ? "Loading videos..." : "No created videos yet."}
+            </p>
+          ) : (
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-soft">
+                <tr>
+                  <th className="py-3 pr-6">Title</th>
+                  <th className="py-3 pr-6">Status</th>
+                  <th className="py-3 pr-6">Video ID</th>
+                  <th className="py-3 pr-6">Size</th>
+                  <th className="py-3 pr-6">Updated</th>
+                  <th className="py-3 pr-6">Output / Error</th>
+                  <th className="py-3">Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortByRecent(videos).map((video) => (
+                  <tr
+                    key={video.video_id}
+                    className="border-b border-white/10 last:border-b-0"
+                  >
+                    <td className="py-4 pr-6 align-top">
+                      <p className="text-base font-semibold">
+                        {video.video_title || "Untitled video"}
+                      </p>
+                      {video.video_introduction && (
+                        <p className="mt-1 max-w-[260px] text-xs text-muted">
+                          {video.video_introduction}
+                        </p>
+                      )}
+                    </td>
+                    <td className="py-4 pr-6 align-top">
+                      <StatusPill status={video.status} />
+                    </td>
+                    <td className="py-4 pr-6 align-top text-xs text-soft">
+                      <span className="font-mono">{video.video_id}</span>
+                    </td>
+                    <td className="py-4 pr-6 align-top text-xs text-muted">
+                      {video.video_size ? String(video.video_size) : "—"}
+                    </td>
+                    <td className="py-4 pr-6 align-top text-xs text-soft">
+                      {formatDateTime(
+                        video.modification_time ?? video.creation_time
+                      )}
+                    </td>
+                    <td className="py-4 align-top text-xs text-muted">
+                      {video.error_reason ? (
+                        <span className="text-rose-200">
+                          Error: {video.error_reason}
+                        </span>
+                      ) : video.output_file_location ? (
+                        <span
+                          className="inline-block max-w-[220px] truncate"
+                          title={video.output_file_location}
+                        >
+                          {video.output_file_location}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-4 align-top text-xs">
+                      <button
+                        className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:text-rose-200/60"
+                        type="button"
+                        onClick={() => handleDelete(video.video_id)}
+                        disabled={Boolean(deleting[video.video_id])}
+                      >
+                        {deleting[video.video_id] ? "Deleting..." : "Delete"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

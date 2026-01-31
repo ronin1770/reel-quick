@@ -226,6 +226,24 @@ def delete_video(video_id: str) -> Dict[str, Any]:
     if doc is None:
         raise HTTPException(status_code=404, detail="video not found")
 
+    parts = list(
+        db.video_parts.find({"video_id": video_id}, {"file_location": 1})
+    )
+    db.video_parts.delete_many({"video_id": video_id})
+
+    file_locations = [doc.get("output_file_location")] + [
+        part.get("file_location") for part in parts
+    ]
+    for file_location in file_locations:
+        if not file_location:
+            continue
+        try:
+            path = Path(file_location)
+            if path.exists():
+                path.unlink()
+        except Exception as exc:
+            logger.warning("Failed to delete file %s: %s", file_location, exc)
+
     logger.info("Deleted video %s", video_id)
     return _serialize(doc)
 
