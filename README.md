@@ -38,9 +38,15 @@ This repository was created to **automate and streamline the reel-creation workf
 
 ## 🚧 Current Status
 
+*Update - Feb 05 2026*
+- Added modules to handle AI related tasks
+- Added models for holding raw data and post data
+- Added worker to call AI engine / model using LLM
+
+
 * ✅ **Backend API (FastAPI)** — completed
 * ✅ **Frontend (Next.js)** — core video creation workflow implemented
-* ⚠️ **Background Worker (ARQ-based)** — currently under active development
+* ✅ **Background Worker (ARQ-based)** — currently under active development
 
 ---
 
