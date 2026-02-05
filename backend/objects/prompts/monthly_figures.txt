@@ -1,0 +1,19 @@
+Inspiring leadership figures born in GIVEN_MONTH below
+- They must be from given FIELD_OF_EXCELLENCE
+- They must have overcame extreme circumstances
+- No Indians (Country)
+- No Israeli
+- No Nazi
+- No holocaust
+- Provide a list at least 50 sorted by the date in ASC order
+- List fields include: code, name, country, DOB, excellence_field, challenges_faced
+---
+GIVEN_MONTH: February
+FIELD_OF_EXCELLENCE: Sports
+
+---
+
+** OUTPUT_FORMAT **
+
+code, name, country, DOB, excellence_field, challenges_faced
+M001, John Doe, USA, 2025-01-01, Sports, Bord poor | Racial discrimination | Shy
