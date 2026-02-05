@@ -12,15 +12,27 @@ from uuid import uuid4
 
 from arq import create_pool
 from arq.connections import RedisSettings
+from bson import ObjectId
+from bson.errors import InvalidId
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from db import get_db, init_db
 from logger import get_logger
+from objects.prompt_constants import AI_TYPE_PROMPT_MAP, AI_TYPE_REQUIRED_FIELDS, AI_TYPES
+from models.raw_posts_data import (
+    RAW_POSTS_COLLECTION,
+    RawPostsDataCreate,
+    RawPostsDataModel,
+    RawPostsDataResponse,
+    RawPostsDataUpdate,
+    _now_str,
+)
 from models.video_model import VideoCreate, VideoSchema, VideoUpdate
 from models.video_part_model import (
     VideoPartCreate,
@@ -55,6 +67,32 @@ def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
     doc = dict(doc)
     doc.pop("_id", None)
     return doc
+
+
+def _serialize_raw_post(doc: Dict[str, Any]) -> Dict[str, Any]:
+    doc = dict(doc)
+    if "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
+def _parse_object_id(raw_id: str) -> ObjectId:
+    try:
+        return ObjectId(raw_id)
+    except (InvalidId, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid _id") from exc
+
+
+class CallApiRequest(BaseModel):
+    ai_type: str = Field(..., min_length=1)
+    input: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CallApiResponse(BaseModel):
+    message: str
+    ai_type: str
+    job_id: str
+    status: str
 
 
 def _parse_hms(value: str) -> int:
@@ -380,3 +418,134 @@ def delete_video_part(video_parts_id: int) -> Dict[str, Any]:
 
     logger.info("Deleted video part %s", video_parts_id)
     return _serialize(doc)
+
+
+@app.post("/call_api", response_model=CallApiResponse)
+async def call_api(payload: CallApiRequest) -> JSONResponse:
+    ai_type = payload.ai_type
+    if ai_type not in AI_TYPE_PROMPT_MAP:
+        allowed = ", ".join(AI_TYPES)
+        raise HTTPException(
+            status_code=400, detail=f"Invalid ai_type. Allowed: {allowed}"
+        )
+
+    required_fields = AI_TYPE_REQUIRED_FIELDS.get(ai_type, [])
+    missing = [
+        field
+        for field in required_fields
+        if field not in payload.input or str(payload.input[field]).strip() == ""
+    ]
+    if missing:
+        missing_list = ", ".join(missing)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required input fields for {ai_type}: {missing_list}",
+        )
+
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+    except Exception as exc:
+        logger.error("Unable to connect to Redis: %s", exc)
+        raise HTTPException(status_code=503, detail="redis unavailable") from exc
+
+    try:
+        job = await redis.enqueue_job("process_ai_task", ai_type, payload.input)
+    finally:
+        await redis.close()
+
+    if job is None:
+        raise HTTPException(status_code=500, detail="enqueue failed")
+
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "message": "ai job queued",
+            "ai_type": ai_type,
+            "job_id": job.job_id,
+            "status": "queued",
+        },
+    )
+
+
+@app.post("/monthly-figures", response_model=RawPostsDataResponse)
+def create_monthly_figures(payload: RawPostsDataCreate) -> Dict[str, Any]:
+    db = get_db()
+    model = RawPostsDataModel(
+        code=payload.code,
+        name=payload.name,
+        country=payload.country,
+        dob=payload.dob,
+        excellence_field=payload.excellence_field,
+        challenges_faced=payload.challenges_faced,
+        quote_created=payload.quote_created if payload.quote_created is not None else False,
+        posted=payload.posted if payload.posted is not None else False,
+        quote_created_on=payload.quote_created_on,
+        posted_on=payload.posted_on,
+    )
+    doc = model.to_bson()
+
+    try:
+        result = db[RAW_POSTS_COLLECTION].insert_one(doc)
+    except DuplicateKeyError as exc:
+        logger.error("Duplicate code on raw_posts_data insert: %s", exc)
+        raise HTTPException(status_code=409, detail="code already exists") from exc
+
+    doc["_id"] = result.inserted_id
+    return _serialize_raw_post(doc)
+
+
+@app.get("/monthly-figures", response_model=List[RawPostsDataResponse])
+def list_monthly_figures(
+    page: int = 1, page_size: int = 20
+) -> List[Dict[str, Any]]:
+    if page < 1 or page_size < 1:
+        raise HTTPException(
+            status_code=400, detail="page and page_size must be >= 1"
+        )
+
+    db = get_db()
+    skip = (page - 1) * page_size
+    cursor = db[RAW_POSTS_COLLECTION].find({}).skip(skip).limit(page_size)
+    return [_serialize_raw_post(doc) for doc in cursor]
+
+
+@app.get("/monthly-figures/{item_id}", response_model=RawPostsDataResponse)
+def get_monthly_figure(item_id: str) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(item_id)
+    doc = db[RAW_POSTS_COLLECTION].find_one({"_id": oid})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="monthly figure not found")
+    return _serialize_raw_post(doc)
+
+
+@app.patch("/monthly-figures/{item_id}", response_model=RawPostsDataResponse)
+def update_monthly_figure(
+    item_id: str, payload: RawPostsDataUpdate
+) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(item_id)
+    update = payload.dict(exclude_unset=True)
+    if "updated_on" not in update:
+        update["updated_on"] = _now_str()
+
+    doc = db[RAW_POSTS_COLLECTION].find_one_and_update(
+        {"_id": oid},
+        {"$set": update},
+        return_document=ReturnDocument.AFTER,
+    )
+
+    if doc is None:
+        raise HTTPException(status_code=404, detail="monthly figure not found")
+
+    return _serialize_raw_post(doc)
+
+
+@app.delete("/monthly-figures/{item_id}", response_model=RawPostsDataResponse)
+def delete_monthly_figure(item_id: str) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(item_id)
+    doc = db[RAW_POSTS_COLLECTION].find_one_and_delete({"_id": oid})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="monthly figure not found")
+    return _serialize_raw_post(doc)

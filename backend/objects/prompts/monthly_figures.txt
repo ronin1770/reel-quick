@@ -7,6 +7,7 @@ Inspiring leadership figures born in GIVEN_MONTH below
 - No holocaust
 - Provide a list at least 50 sorted by the date in ASC order
 - List fields include: code, name, country, DOB, excellence_field, challenges_faced
+- The header consisting of above fields MUST BE present
 ---
 GIVEN_MONTH: February
 FIELD_OF_EXCELLENCE: Sports
