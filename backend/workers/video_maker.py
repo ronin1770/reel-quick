@@ -94,7 +94,7 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
 
     video = db.videos.find_one({"video_id": video_id})
     if video is None:
-        logger.error("Video not found: %s", video_id)
+        logger.info("Video not found: %s", video_id)
         return False
 
     parts = list(
@@ -112,7 +112,7 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
                 }
             },
         )
-        logger.error(reason + ": %s", video_id)
+        logger.info(reason + ": %s", video_id)
         return False
 
     missing_fields = []
@@ -134,7 +134,7 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
                 }
             },
         )
-        logger.error(reason)
+        logger.info(reason)
         return False
 
     output_dir = Path(OUTPUT_FILES_LOCATION)
@@ -212,7 +212,7 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
                 }
             },
         )
-        logger.error("Failed to create video %s: %s", video_id, reason)
+        logger.info("Failed to create video %s: %s", video_id, reason)
         return False
     finally:
         if temp_json_path and os.path.exists(temp_json_path):

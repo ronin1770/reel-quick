@@ -37,7 +37,7 @@ def _now_str() -> str:
 
 def _get_worker_logger() -> logging.Logger:
     logger = get_logger(name="instagram_reel_creation_post_worker")
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.info)
     return logger
 
 
@@ -47,12 +47,12 @@ def _build_prompt_variables(
     mapping = AI_TYPE_VARIABLE_MAP.get(ai_type, {})
     variables: Dict[str, Any] = {}
     if not mapping:
-        logger.debug("No variable mapping found for ai_type=%s", ai_type)
+        logger.info("No variable mapping found for ai_type=%s", ai_type)
     for input_key, prompt_key in mapping.items():
         if input_key in input_payload:
             variables[prompt_key] = input_payload[input_key]
         else:
-            logger.debug(
+            logger.info(
                 "Missing input for variable mapping: %s -> %s",
                 input_key,
                 prompt_key,
@@ -70,7 +70,7 @@ def _validate_required(
         if field not in input_payload or str(input_payload[field]).strip() == ""
     ]
     if missing:
-        logger.error("Missing fields for %s: %s", ai_type, ", ".join(missing))
+        logger.info("Missing fields for %s: %s", ai_type, ", ".join(missing))
         return False
     return True
 
@@ -141,7 +141,7 @@ def _parse_json(text: str, logger: logging.Logger) -> Optional[Any]:
     except (ValueError, SyntaxError):
         pass
 
-    logger.error("Failed to parse JSON output.")
+    logger.info("Failed to parse JSON output.")
     return None
 
 
@@ -222,7 +222,7 @@ def _create_quote_images(
     try:
         creator = BaseImageCreator(output_folder=output_folder)
     except Exception:
-        logger.exception("Failed to initialize image creator for code=%s", code)
+        logger.info("Failed to initialize image creator for code=%s", code)
         raise
 
     paths = creator.create_quotes_images(code=code, name=name, quotes=quotes)
@@ -239,7 +239,7 @@ def _upsert_document(
         "$setOnInsert": {"added_on": now},
     }
     db[collection].update_one({"code": code}, update, upsert=True)
-    logger.debug("Upserted into %s for code=%s", collection, code)
+    logger.info("Upserted into %s for code=%s", collection, code)
 
 
 def _mark_raw_post_processed(db: Any, raw_id: Any, logger: logging.Logger) -> None:
@@ -248,7 +248,7 @@ def _mark_raw_post_processed(db: Any, raw_id: Any, logger: logging.Logger) -> No
         {"_id": raw_id},
         {"$set": {"quote_created": True, "quote_created_on": now, "updated_on": now}},
     )
-    logger.debug("Marked raw post as processed: %s", raw_id)
+    logger.info("Marked raw post as processed: %s", raw_id)
 
 
 async def process_posts(ctx: Dict[str, Any]) -> bool:
@@ -264,7 +264,7 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
         total += 1
         code = raw.get("code", "")
         if not code:
-            logger.error("Skipping raw post with missing code.")
+            logger.info("Skipping raw post with missing code.")
             failure += 1
             continue
 
@@ -288,7 +288,7 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
         try:
             engine = AiEngine()
         except Exception:
-            logger.exception("Unable to initialize AI engine.")
+            logger.info("Unable to initialize AI engine.")
             return False
 
         bio_prompt = AI_TYPE_PROMPT_MAP["BIO_DETAILS"]
@@ -305,17 +305,17 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
                     log_rendered=True,
                 )
             except ValueError as exc:
-                logger.error(
+                logger.info(
                     "Failed to render bio prompt for code=%s: %s",
                     code,
                     exc,
                 )
                 failure += 1
                 continue
-            logger.debug("Bio raw output for code=%s: %s", code, bio_output)
+            logger.info("Bio raw output for code=%s: %s", code, bio_output)
             bio_json = _parse_json(bio_output, logger)
             if not isinstance(bio_json, dict):
-                logger.error("Bio output is not a JSON object for code=%s", code)
+                logger.info("Bio output is not a JSON object for code=%s", code)
                 failure += 1
                 continue
 
@@ -330,23 +330,23 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
                     log_rendered=True,
                 )
             except ValueError as exc:
-                logger.error(
+                logger.info(
                     "Failed to render quotes prompt for code=%s: %s",
                     code,
                     exc,
                 )
                 failure += 1
                 continue
-            logger.debug("Quotes raw output for code=%s: %s", code, quotes_output)
+            logger.info("Quotes raw output for code=%s: %s", code, quotes_output)
             quotes_json = _parse_json(quotes_output, logger)
             if not isinstance(quotes_json, list):
-                logger.error("Quotes output is not a JSON list for code=%s", code)
+                logger.info("Quotes output is not a JSON list for code=%s", code)
                 failure += 1
                 continue
 
             quotes_doc = _build_quotes_document(quotes_json, raw, code)
             if not quotes_doc["quotes"]:
-                logger.error("No quotes found for code=%s", code)
+                logger.info("No quotes found for code=%s", code)
                 failure += 1
                 continue
 
@@ -358,12 +358,12 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
                     logger=logger,
                 )
             except Exception:
-                logger.exception("Failed to create quote images for code=%s", code)
+                logger.info("Failed to create quote images for code=%s", code)
                 failure += 1
                 continue
 
             if not image_paths:
-                logger.error("No quote images created for code=%s", code)
+                logger.info("No quote images created for code=%s", code)
                 failure += 1
                 continue
 
@@ -389,7 +389,7 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
                 ),
             )
         except Exception:
-            logger.exception("Failed to process code=%s", code)
+            logger.info("Failed to process code=%s", code)
             failure += 1
             continue
 
@@ -407,5 +407,5 @@ async def process_posts(ctx: Dict[str, Any]) -> bool:
 class WorkerSettings:
     functions = [process_posts]
     redis_settings = RedisSettings.from_dsn(
-        os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        os.getenv("REDIS_URL", "redis://localhost:6379/1")
     )

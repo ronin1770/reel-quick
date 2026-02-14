@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 
 from arq.connections import RedisSettings
 from dotenv import find_dotenv, load_dotenv
-from pymongo.errors import DuplicateKeyError
+from pymongo.infos import DuplicateKeyError
 
 from backend.db import get_db
 from backend.logger import get_logger
@@ -193,11 +193,11 @@ async def process_ai_task(
     logger.info("AI task received: ai_type=%s", ai_type)
 
     if ai_type not in AI_TYPE_PROMPT_MAP:
-        logger.error("Unknown ai_type: %s", ai_type)
+        logger.info("Unknown ai_type: %s", ai_type)
         return False
 
     if not isinstance(input_payload, dict):
-        logger.error(
+        logger.info(
             "Invalid input payload for ai_type=%s type=%s",
             ai_type,
             type(input_payload).__name__,
@@ -221,7 +221,7 @@ async def process_ai_task(
         if field not in input_payload or str(input_payload[field]).strip() == ""
     ]
     if missing:
-        logger.error("Missing fields for %s: %s", ai_type, ", ".join(missing))
+        logger.info("Missing fields for %s: %s", ai_type, ", ".join(missing))
         return False
 
     prompt_name = AI_TYPE_PROMPT_MAP[ai_type]
@@ -243,7 +243,7 @@ async def process_ai_task(
     if ai_type == "MONTHLY_FIGURES":
         rows = _parse_monthly_figures(output, logger)
         if not rows:
-            logger.error("No rows parsed for %s", ai_type)
+            logger.info("No rows parsed for %s", ai_type)
             return False
         inserted, skipped = _insert_raw_posts(rows, logger)
         logger.info(
@@ -254,7 +254,7 @@ async def process_ai_task(
         )
         return True
 
-    logger.error("No handler implemented for ai_type=%s", ai_type)
+    logger.info("No handler implemented for ai_type=%s", ai_type)
     return False
 
 
