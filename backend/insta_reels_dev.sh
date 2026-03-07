@@ -36,6 +36,10 @@ pids+=("$!")
 arq backend.workers.post_worker.WorkerSettings &
 pids+=("$!")
 
+# Start ARQ voice clone worker
+arq backend.workers.voice_cloner_worker.WorkerSettings &
+pids+=("$!")
+
 # Start frontend (Next.js dev server)
 (
   cd "$REPO_ROOT/frontend"
