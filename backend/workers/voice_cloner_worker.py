@@ -120,9 +120,9 @@ def _get_model() -> Any:
         "device_map": VOICE_CLONE_DEVICE,
         "dtype": torch.bfloat16,
     }
-    attn_impl = VOICE_CLONE_ATTN_IMPLEMENTATION.strip()
+    """attn_impl = VOICE_CLONE_ATTN_IMPLEMENTATION.strip()
     if attn_impl:
-        model_kwargs["attn_implementation"] = attn_impl
+        model_kwargs["attn_implementation"] = attn_impl"""
 
     _MODEL = Qwen3TTSModel.from_pretrained(VOICE_CLONE_MODEL_NAME, **model_kwargs)
     return _MODEL
