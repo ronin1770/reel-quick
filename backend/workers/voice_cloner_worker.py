@@ -134,15 +134,14 @@ def _run_voice_clone(job_doc: Dict[str, Any], output_path: Path) -> str:
 
     model = _get_model()
     ref_audio_path = str(job_doc["ref_audio_path"])
-    ref_text = str("I was referring to the original vintage on which the Sherry is based, sir. 1851. Unmistakable.")
-    sample_text = str(job_doc.get("sample_text") or VOICE_CLONE_SAMPLE_TEXT)
+    sample_text =str(job_doc["ref_text"]).strip()
     language = str(job_doc.get("language") or VOICE_CLONE_LANGUAGE)
 
     wavs, sample_rate = model.generate_voice_clone(
         text=sample_text,
         language=language,
         ref_audio=ref_audio_path,
-        ref_text=ref_text,
+        ref_text="I was referring to the original vintage on which the Sherry is based, sir. 1851. Unmistakable.",
     )
     sf.write(str(output_path), wavs[0], sample_rate)
     return str(output_path.resolve())
