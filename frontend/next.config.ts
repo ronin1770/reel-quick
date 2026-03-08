@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async redirects() {
+    return [
+      {
+        source: "/voice_cloner",
+        destination: "/voice-cloner",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
