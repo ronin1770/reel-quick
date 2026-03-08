@@ -142,10 +142,10 @@ export default function VoiceCloner() {
     setStatusMessage(null);
   };
 
-  const handleUploadReferenceAudio = async () => {
+  const uploadReferenceAudio = async (): Promise<string | null> => {
     if (!selectedFile) {
       setFormError("Please choose a WAV file first.");
-      return;
+      return null;
     }
 
     const looksLikeWav =
@@ -153,12 +153,11 @@ export default function VoiceCloner() {
       selectedFile.type.toLowerCase().includes("wav");
     if (!looksLikeWav) {
       setFormError("Only WAV files are supported for voice cloning.");
-      return;
+      return null;
     }
 
     setIsUploading(true);
     setFormError(null);
-    setStatusMessage(null);
 
     try {
       const formData = new FormData();
@@ -182,13 +181,21 @@ export default function VoiceCloner() {
       setStatusMessage(
         `Reference audio uploaded: ${fileNameFromPath(data.file_location)}`
       );
+      return data.file_location;
     } catch (error) {
       setFormError(
         error instanceof Error ? error.message : "Unable to upload reference audio."
       );
+      return null;
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleUploadReferenceAudio = async () => {
+    setFormError(null);
+    setStatusMessage(null);
+    await uploadReferenceAudio();
   };
 
   const handleClone = async () => {
@@ -196,13 +203,17 @@ export default function VoiceCloner() {
     setStatusMessage(null);
 
     const text = referenceText.trim();
-    if (!uploadedAudioPath) {
-      setFormError("Upload a reference audio file before queueing.");
-      return;
-    }
     if (!text) {
       setFormError("Reference text is required.");
       return;
+    }
+
+    let audioPath = uploadedAudioPath;
+    if (!audioPath) {
+      audioPath = await uploadReferenceAudio();
+      if (!audioPath) {
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -211,7 +222,7 @@ export default function VoiceCloner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ref_audio_path: uploadedAudioPath,
+          ref_audio_path: audioPath,
           ref_text: text,
         }),
       });
@@ -266,7 +277,7 @@ export default function VoiceCloner() {
               onClick={handleUploadReferenceAudio}
               disabled={isUploading || !selectedFile}
             >
-              {isUploading ? "Uploading..." : "Select"}
+              {isUploading ? "Uploading..." : uploadedAudioPath ? "Re-upload" : "Upload"}
             </button>
           </div>
 
