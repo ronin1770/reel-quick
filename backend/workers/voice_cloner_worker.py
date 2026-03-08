@@ -34,6 +34,9 @@ VOICE_CLONE_OUTPUT_DIR = os.getenv(
     "VOICE_CLONE_OUTPUT_DIR", "./output_files/voice_clone"
 )
 VOICE_CLONE_LANGUAGE = os.getenv("VOICE_CLONE_LANGUAGE", "English")
+VOICE_CLONE_ATTN_IMPLEMENTATION = os.getenv(
+    "VOICE_CLONE_ATTN_IMPLEMENTATION", "flash_attention_2"
+)
 VOICE_CLONE_SAMPLE_TEXT = os.getenv(
     "VOICE_CLONE_SAMPLE_TEXT",
     "When you feel like quitting. Remember why you started.",
@@ -113,16 +116,20 @@ def _get_model() -> Any:
     import torch
     from qwen_tts import Qwen3TTSModel
 
-    _MODEL = Qwen3TTSModel.from_pretrained(
-        VOICE_CLONE_MODEL_NAME,
-        device_map=VOICE_CLONE_DEVICE,
-        dtype=torch.bfloat16,
-    )
+    model_kwargs: Dict[str, Any] = {
+        "device_map": VOICE_CLONE_DEVICE,
+        "dtype": torch.bfloat16,
+    }
+    attn_impl = VOICE_CLONE_ATTN_IMPLEMENTATION.strip()
+    if attn_impl:
+        model_kwargs["attn_implementation"] = attn_impl
+
+    _MODEL = Qwen3TTSModel.from_pretrained(VOICE_CLONE_MODEL_NAME, **model_kwargs)
     return _MODEL
 
 
-def _run_voice_clone_sample(job_doc: Dict[str, Any], output_path: Path) -> str:
-    """Generate a sample output audio for the reference voice clone."""
+def _run_voice_clone(job_doc: Dict[str, Any], output_path: Path) -> str:
+    """Generate output audio using the same flow as research-modules/voice_clone.py."""
     import soundfile as sf
 
     model = _get_model()
@@ -131,15 +138,11 @@ def _run_voice_clone_sample(job_doc: Dict[str, Any], output_path: Path) -> str:
     sample_text = str(job_doc.get("sample_text") or VOICE_CLONE_SAMPLE_TEXT)
     language = str(job_doc.get("language") or VOICE_CLONE_LANGUAGE)
 
-    prompt_items = model.create_voice_clone_prompt(
-        ref_audio=ref_audio_path,
-        ref_text=ref_text,
-        x_vector_only_mode=False,
-    )
     wavs, sample_rate = model.generate_voice_clone(
         text=sample_text,
         language=language,
-        voice_clone_prompt=prompt_items,
+        ref_audio=ref_audio_path,
+        ref_text=ref_text,
     )
     sf.write(str(output_path), wavs[0], sample_rate)
     return str(output_path.resolve())
@@ -184,7 +187,7 @@ async def process_voice_clone_job(ctx: Dict[str, Any], job_id: str) -> bool:
     )
 
     try:
-        final_path = _run_voice_clone_sample(job_doc, output_path)
+        final_path = _run_voice_clone(job_doc, output_path)
         _mark_status(
             collection,
             job_id,
