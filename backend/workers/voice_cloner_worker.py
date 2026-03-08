@@ -134,7 +134,7 @@ def _run_voice_clone(job_doc: Dict[str, Any], output_path: Path) -> str:
 
     model = _get_model()
     ref_audio_path = str(job_doc["ref_audio_path"])
-    ref_text = str(job_doc["ref_text"])
+    ref_text = str("I was referring to the original vintage on which the Sherry is based, sir. 1851. Unmistakable.")
     sample_text = str(job_doc.get("sample_text") or VOICE_CLONE_SAMPLE_TEXT)
     language = str(job_doc.get("language") or VOICE_CLONE_LANGUAGE)
 
