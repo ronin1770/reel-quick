@@ -144,7 +144,7 @@ nvm install lts/krypton
 
 ![Voice Cloner](docs/img-6.png)
 
-![Generated Voice Cloner](docs/ff01812f36f34f58be696e4f74207761.wav)
+[Download Generated Voice Clone](docs/ff01812f36f34f58be696e4f74207761.wav)
 
 ---
 
