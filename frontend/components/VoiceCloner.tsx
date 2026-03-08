@@ -23,7 +23,7 @@ type EnqueueResponse = {
   status: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_BASE_ENV = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 const PAGE_SIZE = 5;
 
 const normalizeStatus = (status?: string) => (status ?? "queued").toLowerCase();
@@ -69,7 +69,25 @@ const getErrorMessage = async (response: Response) => {
   return null;
 };
 
+const resolveApiBase = () => {
+  if (API_BASE_ENV) {
+    return API_BASE_ENV;
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+};
+
+const getNetworkErrorMessage = (error: unknown, apiBase: string, action: string) => {
+  if (error instanceof TypeError) {
+    return `Network error while ${action}. Unable to reach API at ${apiBase}. Configure NEXT_PUBLIC_API_BASE_URL if backend runs on a different host/port.`;
+  }
+  return null;
+};
+
 export default function VoiceCloner() {
+  const apiBase = useMemo(resolveApiBase, []);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedAudioPath, setUploadedAudioPath] = useState<string | null>(null);
   const [referenceText, setReferenceText] = useState("");
@@ -89,7 +107,7 @@ export default function VoiceCloner() {
     setJobsError(null);
 
     try {
-      const url = new URL("/voice-clones", API_BASE);
+      const url = new URL("/voice-clones", apiBase);
       url.searchParams.set("page", String(targetPage));
       url.searchParams.set("page_size", String(PAGE_SIZE));
 
@@ -107,13 +125,18 @@ export default function VoiceCloner() {
       setTotalJobs(Number.isFinite(parsedTotal) ? parsedTotal : data.length);
       setPage(targetPage);
     } catch (error) {
+      const networkError = getNetworkErrorMessage(error, apiBase, "loading voice clone jobs");
+      if (networkError) {
+        setJobsError(networkError);
+        return;
+      }
       setJobsError(
         error instanceof Error ? error.message : "Unable to load voice clone jobs."
       );
     } finally {
       setIsLoadingJobs(false);
     }
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => {
     fetchJobs(1);
@@ -163,7 +186,7 @@ export default function VoiceCloner() {
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      const response = await fetch(`${API_BASE}/uploads`, {
+      const response = await fetch(`${apiBase}/uploads`, {
         method: "POST",
         body: formData,
       });
@@ -183,6 +206,15 @@ export default function VoiceCloner() {
       );
       return data.file_location;
     } catch (error) {
+      const networkError = getNetworkErrorMessage(
+        error,
+        apiBase,
+        "uploading reference audio"
+      );
+      if (networkError) {
+        setFormError(networkError);
+        return null;
+      }
       setFormError(
         error instanceof Error ? error.message : "Unable to upload reference audio."
       );
@@ -218,7 +250,7 @@ export default function VoiceCloner() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE}/voice-clones/enqueue`, {
+      const response = await fetch(`${apiBase}/voice-clones/enqueue`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -237,6 +269,11 @@ export default function VoiceCloner() {
       );
       await fetchJobs(1);
     } catch (error) {
+      const networkError = getNetworkErrorMessage(error, apiBase, "queueing voice clone");
+      if (networkError) {
+        setFormError(networkError);
+        return;
+      }
       setFormError(
         error instanceof Error ? error.message : "Unable to queue voice clone."
       );
@@ -389,7 +426,7 @@ export default function VoiceCloner() {
                       {normalizeStatus(job.status) === "completed" ? (
                         <a
                           className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline"
-                          href={`${API_BASE}/voice-clones/${job.job_id}/download`}
+                          href={`${apiBase}/voice-clones/${job.job_id}/download`}
                           target="_blank"
                           rel="noreferrer"
                         >
