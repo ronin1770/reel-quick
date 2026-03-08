@@ -97,12 +97,10 @@ nvm install lts/krypton
 
 ## 🚧 Current Status
 
-*Update - Mar 2 2026*
-- Added page for displaying personalities
-- Improve the UI for personality page
-- It allows you to copy bio to be pasted in automation tool
-- It displays the quotations
-- It provide a mechansims to keep track which quotations have been pushed to automation tool
+*Update - Mar 8 2026*
+- Updated code for creating Clone audio
+- Interface was created
+- Video for the interaction will be uploaded later this week
 
 *Update - Feb 14 2026*
 - Consolidated backend logging to a single file: reel_quick.log for FastAPI + workers + backend modules.
@@ -143,6 +141,10 @@ nvm install lts/krypton
 ![List of Quotes/Bios](docs/img-4.png)
 
 ![Page for listing personalities and quotes](docs/img-5.png)
+
+![Voice Cloner](docs/img-6.png)
+
+![Generated Voice Cloner](docs/ff01812f36f34f58be696e4f74207761.wav)
 
 ---
 
