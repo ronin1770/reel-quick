@@ -141,7 +141,7 @@ def _run_voice_clone(job_doc: Dict[str, Any], output_path: Path) -> str:
         text=sample_text,
         language=language,
         ref_audio=ref_audio_path,
-        ref_text="I was referring to the original vintage on which the Sherry is based, sir. 1851. Unmistakable.",
+        ref_text="I was referring to the original vintage on which the Sherry is based.",
     )
     sf.write(str(output_path), wavs[0], sample_rate)
     return str(output_path.resolve())
