@@ -13,7 +13,6 @@ def main():
         model_path,
         device_map=device,
         dtype=torch.bfloat16 if "cuda" in device else torch.float32,
-        attn_implementation="flash_attention_2" if "cuda" in device else "eager",
     )
 
     texts = [
