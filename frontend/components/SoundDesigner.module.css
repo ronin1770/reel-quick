@@ -1,0 +1,400 @@
+.surface {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.6rem;
+  padding: clamp(1rem, 2.4vw, 1.9rem);
+}
+
+.surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 260px at 0% 0%, rgba(40, 246, 255, 0.16), transparent 65%),
+    radial-gradient(700px 260px at 100% 0%, rgba(255, 45, 199, 0.16), transparent 60%);
+}
+
+.header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding-bottom: 1.2rem;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-oxanium), sans-serif;
+  font-size: clamp(2rem, 3.3vw, 3.1rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tabBar {
+  display: inline-flex;
+  border-radius: 0.7rem;
+  padding: 0.22rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(9, 4, 20, 0.82);
+}
+
+.tabButton {
+  min-width: clamp(130px, 18vw, 230px);
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.72rem 1rem;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: clamp(0.93rem, 1.3vw, 1.05rem);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.tabButton:hover {
+  color: var(--text-high);
+}
+
+.tabButtonActive {
+  color: #180928;
+  background: linear-gradient(110deg, var(--neon-yellow), #ffd996 55%, var(--neon-pink));
+  box-shadow: 0 8px 20px rgba(255, 193, 90, 0.35);
+}
+
+.contentWrap {
+  position: relative;
+  z-index: 1;
+  margin-top: 1rem;
+  animation: panelReveal 220ms ease-out;
+}
+
+.designerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(285px, 0.9fr);
+  gap: 1rem;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.rightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.groupCard,
+.sideCard,
+.presetCard {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(180deg, rgba(17, 9, 34, 0.95), rgba(10, 6, 24, 0.98));
+  box-shadow:
+    0 14px 36px rgba(5, 2, 14, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+
+.groupHeading,
+.sideHeading,
+.presetTitle {
+  margin: 0;
+  padding: 0.85rem 1.1rem;
+  font-size: clamp(1.06rem, 1.6vw, 1.95rem);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.groupBody {
+  padding: 0 0.5rem;
+}
+
+.controlRow {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.78rem;
+  padding: 0.82rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.controlRow:last-child {
+  border-bottom: 0;
+}
+
+.controlLabel {
+  margin: 0;
+  font-size: clamp(0.97rem, 1.45vw, 1.1rem);
+  font-weight: 600;
+  color: var(--text-high);
+}
+
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.52rem;
+}
+
+.pillButton {
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-high);
+  background: rgba(14, 8, 30, 0.8);
+}
+
+.pillButtonActive {
+  color: #180928;
+  border-color: transparent;
+  background: linear-gradient(110deg, #ffc870 0%, #ffd996 45%, #ff9fd7 100%);
+}
+
+.selectMock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.4rem;
+  min-width: 220px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.55rem;
+  padding: 0.47rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-high);
+  background: rgba(14, 8, 30, 0.86);
+}
+
+.chevron {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.scaleWrap {
+  width: min(100%, 560px);
+}
+
+.scaleTrack {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.12));
+}
+
+.scaleDivider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.scaleMarker {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(250, 234, 255, 0.9);
+  background: radial-gradient(circle at 35% 35%, #fff7c7, #ff8ed3 60%, #36204d 100%);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 0 2px rgba(18, 9, 36, 0.9),
+    0 0 14px rgba(255, 140, 213, 0.45);
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.58rem;
+  font-size: clamp(0.82rem, 1.15vw, 0.98rem);
+  color: var(--text-muted);
+}
+
+.sideHeading {
+  font-size: clamp(1.15rem, 1.4vw, 1.42rem);
+}
+
+.textInputMock {
+  margin: 0.88rem;
+  min-height: 146px;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 0.95rem;
+  font-size: 1.05rem;
+  color: var(--text-soft);
+  background: rgba(9, 5, 22, 0.88);
+}
+
+.previewStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.88rem;
+}
+
+.previewButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  width: 166px;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 0.5rem 0.9rem;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--text-high);
+  background: rgba(12, 7, 26, 0.9);
+}
+
+.previewGlyph {
+  width: 1.2rem;
+  font-family: var(--font-oxanium), sans-serif;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.generateRow {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0.88rem;
+}
+
+.generateButton {
+  min-width: 66%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  font-family: var(--font-oxanium), sans-serif;
+  font-size: clamp(1.42rem, 1.8vw, 2rem);
+  font-weight: 700;
+  color: #180928;
+  background: linear-gradient(110deg, #ffba59, #ffe8b3 44%, #ff88ce);
+  box-shadow: 0 12px 28px rgba(255, 173, 86, 0.3);
+}
+
+.presetsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.presetTitle {
+  font-size: clamp(1.22rem, 1.6vw, 1.95rem);
+}
+
+.presetBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1.1rem;
+}
+
+.presetLines {
+  display: grid;
+  gap: 0;
+}
+
+.presetLine {
+  margin: 0;
+  padding: 0.4rem 0;
+  font-size: clamp(0.95rem, 1.3vw, 1.24rem);
+  color: var(--text-muted);
+}
+
+.presetLine + .presetLine {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.applyButton {
+  min-width: 132px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 0.55rem;
+  padding: 0.6rem 1.25rem;
+  font-size: clamp(1.05rem, 1.3vw, 1.25rem);
+  font-weight: 700;
+  color: var(--text-high);
+  background: linear-gradient(160deg, rgba(18, 10, 35, 0.9), rgba(9, 5, 21, 0.98));
+}
+
+.tabButton:focus-visible,
+.pillButton:focus-visible,
+.selectMock:focus-visible,
+.previewButton:focus-visible,
+.generateButton:focus-visible,
+.applyButton:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1140px) {
+  .designerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rightColumn {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    align-items: start;
+  }
+
+  .previewButton {
+    width: 100%;
+  }
+
+  .generateButton {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 800px) {
+  .controlRow {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .scaleWrap {
+    width: 100%;
+  }
+
+  .tabBar {
+    width: 100%;
+  }
+
+  .tabButton {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .presetBody {
+    grid-template-columns: 1fr;
+  }
+
+  .applyButton {
+    width: 100%;
+  }
+}
+
+@keyframes panelReveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
