@@ -32,6 +32,7 @@ from objects.sound_prompt_creator import (
     SoundPromptCreator,
     VoiceProfile as SoundPromptVoiceProfile,
 )
+from objects.sound_prompt_preset import SoundPromptPreset
 from models.person_bio import PERSON_BIO_COLLECTION
 from models.quotes import QUOTES_COLLECTION
 from models.raw_posts_data import (
@@ -102,6 +103,7 @@ async def unhandled_exception_handler(
 
 
 VOICE_DESIGN_ROUTE = "/api/v1/voice-design/"
+VOICE_DESIGN_PRESETS_ROUTE = "/api/v1/voice-design/presets"
 
 
 class VoiceDesignLanguage(str, Enum):
@@ -745,6 +747,19 @@ async def _require_worker_health(
         status_code=503,
         detail=f"{worker_label} worker unavailable",
     )
+
+
+@app.get(VOICE_DESIGN_PRESETS_ROUTE)
+def list_voice_design_presets() -> Dict[str, Any]:
+    return SoundPromptPreset.get_presets()
+
+
+@app.get(f"{VOICE_DESIGN_PRESETS_ROUTE}/{{preset_id}}")
+def get_voice_design_preset(preset_id: str) -> Any:
+    response = SoundPromptPreset.get_preset_value(preset_id)
+    if response.get("success"):
+        return response
+    return JSONResponse(status_code=404, content=response)
 
 
 @app.post(VOICE_DESIGN_ROUTE, response_model=VoiceDesignResponse)
