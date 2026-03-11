@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 import os
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from arq import create_pool
@@ -16,6 +17,8 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -86,6 +89,560 @@ async def unhandled_exception_handler(
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
+    )
+
+
+VOICE_DESIGN_ROUTE = "/api/v1/voice-design/"
+
+
+class VoiceDesignLanguage(str, Enum):
+    en = "en"
+    zh = "zh"
+    ar = "ar"
+    ur = "ur"
+
+
+class VoiceDesignPresetName(str, Enum):
+    alpha_mentor = "alpha_mentor"
+    wise_king = "wise_king"
+    borderline_angry_coach = "borderline_angry_coach"
+    dark_cinematic_narrator = "dark_cinematic_narrator"
+
+
+class VoiceDesignGenderPresentation(str, Enum):
+    masculine = "masculine"
+    feminine = "feminine"
+    neutral = "neutral"
+
+
+class VoiceDesignAgeImpression(str, Enum):
+    teen = "teen"
+    young = "young"
+    mature = "mature"
+    elder = "elder"
+
+
+class VoiceDesignAccentPronunciation(str, Enum):
+    neutral_english = "neutral_english"
+    american_english = "american_english"
+    british_english = "british_english"
+
+
+class VoiceDesignPitch(str, Enum):
+    very_low = "very_low"
+    low = "low"
+    mid = "mid"
+    high = "high"
+
+
+class VoiceDesignVocalWeight(str, Enum):
+    light = "light"
+    medium = "medium"
+    heavy = "heavy"
+    very_heavy = "very_heavy"
+
+
+class VoiceDesignRoughness(str, Enum):
+    smooth = "smooth"
+    slight = "slight"
+    rough = "rough"
+    gritty = "gritty"
+
+
+class VoiceDesignSpeakingPace(str, Enum):
+    very_slow = "very_slow"
+    slow = "slow"
+    medium = "medium"
+    fast = "fast"
+
+
+class VoiceDesignEnergyLevel(str, Enum):
+    calm = "calm"
+    controlled = "controlled"
+    intense = "intense"
+    explosive = "explosive"
+
+
+class VoiceDesignDramaticPauseIntensity(str, Enum):
+    minimal = "minimal"
+    natural = "natural"
+    strong = "strong"
+    cinematic = "cinematic"
+
+
+class VoiceDesignEmotionalTone(str, Enum):
+    serious = "serious"
+    inspirational = "inspirational"
+    aggressive = "aggressive"
+
+
+class VoiceDesignAuthorityDominance(str, Enum):
+    soft = "soft"
+    balanced = "balanced"
+    dominant = "dominant"
+    commanding = "commanding"
+
+
+class VoiceDesignWarmthColdness(str, Enum):
+    cold = "cold"
+    slight_cold = "slight_cold"
+    balanced = "balanced"
+    warm = "warm"
+
+
+class VoiceDesignOutputFormat(str, Enum):
+    wav = "wav"
+    mp3 = "mp3"
+
+
+class VoiceDesignSampleRate(int, Enum):
+    sr_16000 = 16000
+    sr_22050 = 22050
+    sr_24000 = 24000
+    sr_44100 = 44100
+
+
+class VoiceDesignIdentity(BaseModel):
+    gender_presentation: Optional[VoiceDesignGenderPresentation] = None
+    age_impression: Optional[VoiceDesignAgeImpression] = None
+    accent_pronunciation: Optional[VoiceDesignAccentPronunciation] = None
+
+
+class VoiceDesignVoiceBody(BaseModel):
+    pitch: Optional[VoiceDesignPitch] = None
+    vocal_weight: Optional[VoiceDesignVocalWeight] = None
+    roughness_grit: Optional[VoiceDesignRoughness] = None
+
+
+class VoiceDesignDelivery(BaseModel):
+    speaking_pace: Optional[VoiceDesignSpeakingPace] = None
+    energy_level: Optional[VoiceDesignEnergyLevel] = None
+    dramatic_pause_intensity: Optional[VoiceDesignDramaticPauseIntensity] = None
+
+
+class VoiceDesignPersonality(BaseModel):
+    emotional_tone: Optional[List[VoiceDesignEmotionalTone]] = None
+    authority_dominance: Optional[VoiceDesignAuthorityDominance] = None
+    warmth_coldness: Optional[VoiceDesignWarmthColdness] = None
+
+
+class VoiceDesignVoiceProfile(BaseModel):
+    identity: Optional[VoiceDesignIdentity] = None
+    voice_body: Optional[VoiceDesignVoiceBody] = None
+    delivery: Optional[VoiceDesignDelivery] = None
+    personality: Optional[VoiceDesignPersonality] = None
+
+
+class VoiceDesignGenerationOptions(BaseModel):
+    max_new_tokens: int = Field(2048, ge=1)
+    output_format: VoiceDesignOutputFormat = VoiceDesignOutputFormat.wav
+    sample_rate: VoiceDesignSampleRate = VoiceDesignSampleRate.sr_24000
+    return_base64: bool = False
+
+
+class VoiceDesignRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    language: VoiceDesignLanguage = VoiceDesignLanguage.en
+    preset_name: Optional[VoiceDesignPresetName] = None
+    voice_profile: Optional[VoiceDesignVoiceProfile] = None
+    generation_options: VoiceDesignGenerationOptions = Field(
+        default_factory=VoiceDesignGenerationOptions
+    )
+
+
+class VoiceDesignResponse(BaseModel):
+    success: bool
+    request_id: str
+    derived_instruction: str
+
+
+VOICE_DESIGN_PRESETS: Dict[str, Dict[str, Any]] = {
+    VoiceDesignPresetName.alpha_mentor.value: {
+        "identity": {
+            "gender_presentation": VoiceDesignGenderPresentation.masculine.value,
+            "age_impression": VoiceDesignAgeImpression.mature.value,
+            "accent_pronunciation": VoiceDesignAccentPronunciation.neutral_english.value,
+        },
+        "voice_body": {
+            "pitch": VoiceDesignPitch.low.value,
+            "vocal_weight": VoiceDesignVocalWeight.heavy.value,
+            "roughness_grit": VoiceDesignRoughness.slight.value,
+        },
+        "delivery": {
+            "speaking_pace": VoiceDesignSpeakingPace.slow.value,
+            "energy_level": VoiceDesignEnergyLevel.intense.value,
+            "dramatic_pause_intensity": VoiceDesignDramaticPauseIntensity.strong.value,
+        },
+        "personality": {
+            "emotional_tone": [
+                VoiceDesignEmotionalTone.serious.value,
+                VoiceDesignEmotionalTone.inspirational.value,
+                VoiceDesignEmotionalTone.aggressive.value,
+            ],
+            "authority_dominance": VoiceDesignAuthorityDominance.commanding.value,
+            "warmth_coldness": VoiceDesignWarmthColdness.balanced.value,
+        },
+    },
+    VoiceDesignPresetName.wise_king.value: {
+        "identity": {
+            "gender_presentation": VoiceDesignGenderPresentation.masculine.value,
+            "age_impression": VoiceDesignAgeImpression.elder.value,
+            "accent_pronunciation": VoiceDesignAccentPronunciation.british_english.value,
+        },
+        "voice_body": {
+            "pitch": VoiceDesignPitch.low.value,
+            "vocal_weight": VoiceDesignVocalWeight.heavy.value,
+            "roughness_grit": VoiceDesignRoughness.smooth.value,
+        },
+        "delivery": {
+            "speaking_pace": VoiceDesignSpeakingPace.slow.value,
+            "energy_level": VoiceDesignEnergyLevel.controlled.value,
+            "dramatic_pause_intensity": VoiceDesignDramaticPauseIntensity.cinematic.value,
+        },
+        "personality": {
+            "emotional_tone": [
+                VoiceDesignEmotionalTone.serious.value,
+                VoiceDesignEmotionalTone.inspirational.value,
+            ],
+            "authority_dominance": VoiceDesignAuthorityDominance.dominant.value,
+            "warmth_coldness": VoiceDesignWarmthColdness.warm.value,
+        },
+    },
+    VoiceDesignPresetName.borderline_angry_coach.value: {
+        "identity": {
+            "gender_presentation": VoiceDesignGenderPresentation.masculine.value,
+            "age_impression": VoiceDesignAgeImpression.mature.value,
+            "accent_pronunciation": VoiceDesignAccentPronunciation.american_english.value,
+        },
+        "voice_body": {
+            "pitch": VoiceDesignPitch.low.value,
+            "vocal_weight": VoiceDesignVocalWeight.heavy.value,
+            "roughness_grit": VoiceDesignRoughness.rough.value,
+        },
+        "delivery": {
+            "speaking_pace": VoiceDesignSpeakingPace.medium.value,
+            "energy_level": VoiceDesignEnergyLevel.intense.value,
+            "dramatic_pause_intensity": VoiceDesignDramaticPauseIntensity.strong.value,
+        },
+        "personality": {
+            "emotional_tone": [
+                VoiceDesignEmotionalTone.inspirational.value,
+                VoiceDesignEmotionalTone.aggressive.value,
+            ],
+            "authority_dominance": VoiceDesignAuthorityDominance.commanding.value,
+            "warmth_coldness": VoiceDesignWarmthColdness.slight_cold.value,
+        },
+    },
+    VoiceDesignPresetName.dark_cinematic_narrator.value: {
+        "identity": {
+            "gender_presentation": VoiceDesignGenderPresentation.masculine.value,
+            "age_impression": VoiceDesignAgeImpression.mature.value,
+            "accent_pronunciation": VoiceDesignAccentPronunciation.neutral_english.value,
+        },
+        "voice_body": {
+            "pitch": VoiceDesignPitch.very_low.value,
+            "vocal_weight": VoiceDesignVocalWeight.heavy.value,
+            "roughness_grit": VoiceDesignRoughness.gritty.value,
+        },
+        "delivery": {
+            "speaking_pace": VoiceDesignSpeakingPace.very_slow.value,
+            "energy_level": VoiceDesignEnergyLevel.controlled.value,
+            "dramatic_pause_intensity": VoiceDesignDramaticPauseIntensity.cinematic.value,
+        },
+        "personality": {
+            "emotional_tone": [
+                VoiceDesignEmotionalTone.serious.value,
+                VoiceDesignEmotionalTone.aggressive.value,
+            ],
+            "authority_dominance": VoiceDesignAuthorityDominance.dominant.value,
+            "warmth_coldness": VoiceDesignWarmthColdness.cold.value,
+        },
+    },
+}
+
+
+VOICE_DESIGN_WARMTH_HINTS: Dict[str, str] = {
+    VoiceDesignWarmthColdness.cold.value: "a cold emotional presence",
+    VoiceDesignWarmthColdness.slight_cold.value: "a slightly cold emotional presence",
+    VoiceDesignWarmthColdness.balanced.value: "a balanced emotional warmth",
+    VoiceDesignWarmthColdness.warm.value: "a warm emotional presence",
+}
+
+
+def _voice_design_model_dump(model: BaseModel) -> Dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump(exclude_none=True)  # type: ignore[attr-defined]
+    return model.dict(exclude_none=True)
+
+
+def _voice_design_deep_merge(
+    base: Dict[str, Any], override: Dict[str, Any]
+) -> Dict[str, Any]:
+    merged = dict(base)
+    for key, value in override.items():
+        if (
+            isinstance(value, dict)
+            and isinstance(merged.get(key), dict)
+        ):
+            merged[key] = _voice_design_deep_merge(merged[key], value)
+            continue
+        merged[key] = value
+    return merged
+
+
+def _voice_design_humanize(value: Any) -> str:
+    if isinstance(value, Enum):
+        return str(value.value).replace("_", " ")
+    return str(value).replace("_", " ")
+
+
+def _voice_design_join_with_and(values: List[str]) -> str:
+    if not values:
+        return ""
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+def _resolve_voice_design_profile(
+    payload: VoiceDesignRequest,
+) -> Optional[VoiceDesignVoiceProfile]:
+    preset_data: Dict[str, Any] = {}
+    if payload.preset_name is not None:
+        preset_data = VOICE_DESIGN_PRESETS.get(payload.preset_name.value, {})
+
+    custom_data: Dict[str, Any] = {}
+    if payload.voice_profile is not None:
+        custom_data = _voice_design_model_dump(payload.voice_profile)
+
+    merged_profile = _voice_design_deep_merge(preset_data, custom_data)
+    if not merged_profile:
+        return None
+    return VoiceDesignVoiceProfile(**merged_profile)
+
+
+def _build_voice_design_instruction(profile: VoiceDesignVoiceProfile) -> str:
+    identity = profile.identity or VoiceDesignIdentity()
+    voice_body = profile.voice_body or VoiceDesignVoiceBody()
+    delivery = profile.delivery or VoiceDesignDelivery()
+    personality = profile.personality or VoiceDesignPersonality()
+
+    voice_descriptors: List[str] = []
+    if identity.gender_presentation is not None:
+        voice_descriptors.append(_voice_design_humanize(identity.gender_presentation))
+    if identity.age_impression is not None:
+        voice_descriptors.append(_voice_design_humanize(identity.age_impression))
+    descriptor_text = ", ".join(voice_descriptors) if voice_descriptors else "confident"
+
+    sentence_one = f"Speak in a {descriptor_text} voice"
+    voice_body_parts: List[str] = []
+    if voice_body.pitch is not None:
+        voice_body_parts.append(f"a {_voice_design_humanize(voice_body.pitch)} pitch")
+    if voice_body.vocal_weight is not None:
+        voice_body_parts.append(
+            f"{_voice_design_humanize(voice_body.vocal_weight)} vocal weight"
+        )
+    if voice_body_parts:
+        sentence_one += f" with {_voice_design_join_with_and(voice_body_parts)}"
+    sentence_one += "."
+
+    instruction_parts: List[str] = [sentence_one]
+    if (
+        identity.accent_pronunciation is not None
+        and identity.accent_pronunciation != VoiceDesignAccentPronunciation.neutral_english
+    ):
+        instruction_parts.append(
+            f"Use {_voice_design_humanize(identity.accent_pronunciation)} pronunciation."
+        )
+    if voice_body.roughness_grit is not None:
+        instruction_parts.append(
+            f"Use a {_voice_design_humanize(voice_body.roughness_grit)} vocal grit."
+        )
+
+    delivery_fragments: List[str] = []
+    if delivery.energy_level is not None:
+        delivery_fragments.append(
+            f"{_voice_design_humanize(delivery.energy_level)} energy"
+        )
+    if delivery.dramatic_pause_intensity is not None:
+        delivery_fragments.append(
+            f"{_voice_design_humanize(delivery.dramatic_pause_intensity)} dramatic pauses"
+        )
+    if (
+        delivery.speaking_pace is not None
+        or delivery_fragments
+    ):
+        pace = (
+            f"at a {_voice_design_humanize(delivery.speaking_pace)} pace"
+            if delivery.speaking_pace is not None
+            else "with deliberate pacing"
+        )
+        if delivery_fragments:
+            instruction_parts.append(
+                f"Deliver the speech {pace} with {_voice_design_join_with_and(delivery_fragments)}."
+            )
+        else:
+            instruction_parts.append(f"Deliver the speech {pace}.")
+
+    tone_values = [
+        _voice_design_humanize(value) for value in (personality.emotional_tone or [])
+    ]
+    personality_suffix: List[str] = []
+    if personality.authority_dominance is not None:
+        personality_suffix.append(
+            f"{_voice_design_humanize(personality.authority_dominance)} authority"
+        )
+    if personality.warmth_coldness is not None:
+        warmth_value = personality.warmth_coldness.value
+        personality_suffix.append(
+            VOICE_DESIGN_WARMTH_HINTS.get(
+                warmth_value,
+                f"{_voice_design_humanize(personality.warmth_coldness)} warmth",
+            )
+        )
+
+    if tone_values:
+        sentence = (
+            f"Maintain a {_voice_design_join_with_and(tone_values)} tone"
+        )
+        if personality_suffix:
+            sentence += f" with {_voice_design_join_with_and(personality_suffix)}"
+        sentence += "."
+        instruction_parts.append(sentence)
+    elif personality_suffix:
+        instruction_parts.append(
+            f"Maintain {_voice_design_join_with_and(personality_suffix)}."
+        )
+
+    return " ".join(instruction_parts)
+
+
+def _voice_design_invalid_parameter_response(
+    field: str,
+    message: str,
+    received: Any = None,
+    allowed_values: Optional[List[Any]] = None,
+) -> JSONResponse:
+    details: Dict[str, Any] = {"field": field}
+    if received is not None:
+        details["received"] = received
+    if allowed_values:
+        details["allowed_values"] = allowed_values
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success": False,
+            "error": {
+                "code": "INVALID_PARAMETER",
+                "message": message,
+                "details": details,
+            },
+        },
+    )
+
+
+def _voice_design_error_allowed_values(error: Dict[str, Any]) -> Optional[List[Any]]:
+    ctx = error.get("ctx") or {}
+    enum_values = ctx.get("enum_values")
+    if enum_values:
+        return [
+            value.value if hasattr(value, "value") else value
+            for value in enum_values
+        ]
+    expected = ctx.get("expected")
+    if isinstance(expected, str):
+        raw_parts = expected.replace(" or ", ", ").split(",")
+        parsed: List[Any] = []
+        for raw_value in raw_parts:
+            value = raw_value.strip().strip("'").strip('"')
+            if not value:
+                continue
+            if value.isdigit():
+                parsed.append(int(value))
+                continue
+            parsed.append(value)
+        if parsed:
+            return parsed
+    return None
+
+
+def _voice_design_error_field(loc: Tuple[Any, ...]) -> str:
+    fields: List[str] = []
+    for raw_part in loc:
+        if raw_part == "body":
+            continue
+        if raw_part == "voice_profile":
+            continue
+        fields.append(str(raw_part))
+    if not fields:
+        return "body"
+    return ".".join(fields)
+
+
+def _voice_design_error_received(
+    body: Any, loc: Tuple[Any, ...], fallback: Any
+) -> Any:
+    if fallback is not None:
+        return fallback
+    if body is None:
+        return None
+
+    current = body
+    for raw_part in loc:
+        if raw_part == "body":
+            continue
+
+        if isinstance(current, dict):
+            if raw_part not in current:
+                return None
+            current = current[raw_part]
+            continue
+
+        if isinstance(current, list) and isinstance(raw_part, int):
+            if raw_part < 0 or raw_part >= len(current):
+                return None
+            current = current[raw_part]
+            continue
+
+        return None
+    return current
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    if not request.url.path.startswith(VOICE_DESIGN_ROUTE.rstrip("/")):
+        return await request_validation_exception_handler(request, exc)
+
+    errors = exc.errors()
+    if not errors:
+        return _voice_design_invalid_parameter_response(
+            field="body",
+            message="Invalid request body",
+        )
+
+    primary_error = errors[0]
+    loc = tuple(primary_error.get("loc", ()))
+    field = _voice_design_error_field(loc)
+    error_type = str(primary_error.get("type", ""))
+    message = f"Invalid value for {field}"
+    if "missing" in error_type:
+        message = f"Missing required field {field}"
+
+    received = _voice_design_error_received(
+        getattr(exc, "body", None),
+        loc,
+        primary_error.get("input"),
+    )
+    allowed_values = _voice_design_error_allowed_values(primary_error)
+    return _voice_design_invalid_parameter_response(
+        field=field,
+        message=message,
+        received=received,
+        allowed_values=allowed_values,
     )
 
 
@@ -219,6 +776,31 @@ async def _require_worker_health(
         status_code=503,
         detail=f"{worker_label} worker unavailable",
     )
+
+
+@app.post(VOICE_DESIGN_ROUTE, response_model=VoiceDesignResponse)
+def create_voice_design(payload: VoiceDesignRequest) -> Any:
+    profile = _resolve_voice_design_profile(payload)
+    if profile is None:
+        return _voice_design_invalid_parameter_response(
+            field="voice_profile",
+            message="Either preset_name or voice_profile is required",
+        )
+
+    derived_instruction = _build_voice_design_instruction(profile)
+    request_id = str(uuid4())
+    logger.info(
+        "Voice design generated request_id=%s language=%s preset=%s",
+        request_id,
+        payload.language.value,
+        payload.preset_name.value if payload.preset_name is not None else None,
+    )
+
+    return {
+        "success": True,
+        "request_id": request_id,
+        "derived_instruction": derived_instruction,
+    }
 
 
 @app.post("/uploads")
