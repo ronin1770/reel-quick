@@ -21,13 +21,17 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from db import get_db, init_db
 from logger import get_logger
 from objects.prompt_constants import AI_TYPE_PROMPT_MAP, AI_TYPE_REQUIRED_FIELDS, AI_TYPES
+from objects.sound_prompt_creator import (
+    SoundPromptCreator,
+    VoiceProfile as SoundPromptVoiceProfile,
+)
 from models.person_bio import PERSON_BIO_COLLECTION
 from models.quotes import QUOTES_COLLECTION
 from models.raw_posts_data import (
@@ -361,14 +365,6 @@ VOICE_DESIGN_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 
-VOICE_DESIGN_WARMTH_HINTS: Dict[str, str] = {
-    VoiceDesignWarmthColdness.cold.value: "a cold emotional presence",
-    VoiceDesignWarmthColdness.slight_cold.value: "a slightly cold emotional presence",
-    VoiceDesignWarmthColdness.balanced.value: "a balanced emotional warmth",
-    VoiceDesignWarmthColdness.warm.value: "a warm emotional presence",
-}
-
-
 def _voice_design_model_dump(model: BaseModel) -> Dict[str, Any]:
     if hasattr(model, "model_dump"):
         return model.model_dump(exclude_none=True)  # type: ignore[attr-defined]
@@ -390,22 +386,6 @@ def _voice_design_deep_merge(
     return merged
 
 
-def _voice_design_humanize(value: Any) -> str:
-    if isinstance(value, Enum):
-        return str(value.value).replace("_", " ")
-    return str(value).replace("_", " ")
-
-
-def _voice_design_join_with_and(values: List[str]) -> str:
-    if not values:
-        return ""
-    if len(values) == 1:
-        return values[0]
-    if len(values) == 2:
-        return f"{values[0]} and {values[1]}"
-    return f"{', '.join(values[:-1])}, and {values[-1]}"
-
-
 def _resolve_voice_design_profile(
     payload: VoiceDesignRequest,
 ) -> Optional[VoiceDesignVoiceProfile]:
@@ -421,102 +401,6 @@ def _resolve_voice_design_profile(
     if not merged_profile:
         return None
     return VoiceDesignVoiceProfile(**merged_profile)
-
-
-def _build_voice_design_instruction(profile: VoiceDesignVoiceProfile) -> str:
-    identity = profile.identity or VoiceDesignIdentity()
-    voice_body = profile.voice_body or VoiceDesignVoiceBody()
-    delivery = profile.delivery or VoiceDesignDelivery()
-    personality = profile.personality or VoiceDesignPersonality()
-
-    voice_descriptors: List[str] = []
-    if identity.gender_presentation is not None:
-        voice_descriptors.append(_voice_design_humanize(identity.gender_presentation))
-    if identity.age_impression is not None:
-        voice_descriptors.append(_voice_design_humanize(identity.age_impression))
-    descriptor_text = ", ".join(voice_descriptors) if voice_descriptors else "confident"
-
-    sentence_one = f"Speak in a {descriptor_text} voice"
-    voice_body_parts: List[str] = []
-    if voice_body.pitch is not None:
-        voice_body_parts.append(f"a {_voice_design_humanize(voice_body.pitch)} pitch")
-    if voice_body.vocal_weight is not None:
-        voice_body_parts.append(
-            f"{_voice_design_humanize(voice_body.vocal_weight)} vocal weight"
-        )
-    if voice_body_parts:
-        sentence_one += f" with {_voice_design_join_with_and(voice_body_parts)}"
-    sentence_one += "."
-
-    instruction_parts: List[str] = [sentence_one]
-    if (
-        identity.accent_pronunciation is not None
-        and identity.accent_pronunciation != VoiceDesignAccentPronunciation.neutral_english
-    ):
-        instruction_parts.append(
-            f"Use {_voice_design_humanize(identity.accent_pronunciation)} pronunciation."
-        )
-    if voice_body.roughness_grit is not None:
-        instruction_parts.append(
-            f"Use a {_voice_design_humanize(voice_body.roughness_grit)} vocal grit."
-        )
-
-    delivery_fragments: List[str] = []
-    if delivery.energy_level is not None:
-        delivery_fragments.append(
-            f"{_voice_design_humanize(delivery.energy_level)} energy"
-        )
-    if delivery.dramatic_pause_intensity is not None:
-        delivery_fragments.append(
-            f"{_voice_design_humanize(delivery.dramatic_pause_intensity)} dramatic pauses"
-        )
-    if (
-        delivery.speaking_pace is not None
-        or delivery_fragments
-    ):
-        pace = (
-            f"at a {_voice_design_humanize(delivery.speaking_pace)} pace"
-            if delivery.speaking_pace is not None
-            else "with deliberate pacing"
-        )
-        if delivery_fragments:
-            instruction_parts.append(
-                f"Deliver the speech {pace} with {_voice_design_join_with_and(delivery_fragments)}."
-            )
-        else:
-            instruction_parts.append(f"Deliver the speech {pace}.")
-
-    tone_values = [
-        _voice_design_humanize(value) for value in (personality.emotional_tone or [])
-    ]
-    personality_suffix: List[str] = []
-    if personality.authority_dominance is not None:
-        personality_suffix.append(
-            f"{_voice_design_humanize(personality.authority_dominance)} authority"
-        )
-    if personality.warmth_coldness is not None:
-        warmth_value = personality.warmth_coldness.value
-        personality_suffix.append(
-            VOICE_DESIGN_WARMTH_HINTS.get(
-                warmth_value,
-                f"{_voice_design_humanize(personality.warmth_coldness)} warmth",
-            )
-        )
-
-    if tone_values:
-        sentence = (
-            f"Maintain a {_voice_design_join_with_and(tone_values)} tone"
-        )
-        if personality_suffix:
-            sentence += f" with {_voice_design_join_with_and(personality_suffix)}"
-        sentence += "."
-        instruction_parts.append(sentence)
-    elif personality_suffix:
-        instruction_parts.append(
-            f"Maintain {_voice_design_join_with_and(personality_suffix)}."
-        )
-
-    return " ".join(instruction_parts)
 
 
 def _voice_design_invalid_parameter_response(
@@ -787,7 +671,27 @@ def create_voice_design(payload: VoiceDesignRequest) -> Any:
             message="Either preset_name or voice_profile is required",
         )
 
-    derived_instruction = _build_voice_design_instruction(profile)
+    profile_data = _voice_design_model_dump(profile)
+    try:
+        resolved_profile = SoundPromptVoiceProfile(**profile_data)
+    except ValidationError as exc:
+        errors = exc.errors()
+        primary_error = errors[0] if errors else {}
+        loc = tuple(primary_error.get("loc", ()))
+        field = "voice_profile"
+        if loc:
+            field = f"voice_profile.{'.'.join(str(part) for part in loc)}"
+        return _voice_design_invalid_parameter_response(
+            field=field,
+            message=(
+                "Resolved voice_profile is incomplete. "
+                "Provide a complete profile or use a complete preset."
+            ),
+            received=profile_data,
+            allowed_values=_voice_design_error_allowed_values(primary_error),
+        )
+
+    derived_instruction = SoundPromptCreator.build_voice_instruction(resolved_profile)
     request_id = str(uuid4())
     logger.info(
         "Voice design generated request_id=%s language=%s preset=%s",
