@@ -7,7 +7,7 @@ from qwen_tts import Qwen3TTSModel
 
 def main():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    model_path = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign/"
+    model_path = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
 
     tts = Qwen3TTSModel.from_pretrained(
         model_path,
