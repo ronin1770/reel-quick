@@ -34,13 +34,20 @@ def init_db() -> Database:
     """Ensure the database and collections exist."""
     db = get_db()
     existing = set(db.list_collection_names())
-    for name in ("videos", "video_parts", "raw_posts_data", "voice_clone_job"):
+    for name in (
+        "videos",
+        "video_parts",
+        "raw_posts_data",
+        "voice_clone_job",
+        "sound_design_prompt",
+    ):
         if name not in existing:
             db.create_collection(name)
 
     db.videos.create_index("video_id", unique=True)
     db.raw_posts_data.create_index("code", unique=True)
     db.voice_clone_job.create_index("job_id", unique=True)
+    db.sound_design_prompt.create_index("sound_design_id", unique=True)
     return db
 
 

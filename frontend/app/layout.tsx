@@ -68,6 +68,9 @@ export default function RootLayout({
                 <Link className="app-nav__link" href="/voice-cloner">
                   Voice Cloner
                 </Link>
+                <Link className="app-nav__link" href="/sound-designer">
+                  Sound Designer
+                </Link>
               </nav>
               <div className="app-header__actions">
                 <Link

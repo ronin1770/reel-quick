@@ -42,6 +42,11 @@ from models.raw_posts_data import (
     RawPostsDataUpdate,
     _now_str,
 )
+from models.sound_design_prompt import (
+    SOUND_DESIGN_PROMPT_COLLECTION,
+    SoundDesignPromptModel,
+    SoundDesignPromptStatus,
+)
 from models.video_model import VideoCreate, VideoSchema, VideoUpdate
 from models.voice_job_status import VOICE_CLONE_JOB_COLLECTION, VoiceCloneJobModel
 from models.video_part_model import (
@@ -365,10 +370,25 @@ VOICE_DESIGN_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 
+def _voice_design_json_safe(value: Any) -> Any:
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {
+            key: _voice_design_json_safe(inner_value)
+            for key, inner_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_voice_design_json_safe(inner_value) for inner_value in value]
+    return value
+
+
 def _voice_design_model_dump(model: BaseModel) -> Dict[str, Any]:
     if hasattr(model, "model_dump"):
-        return model.model_dump(exclude_none=True)  # type: ignore[attr-defined]
-    return model.dict(exclude_none=True)
+        return _voice_design_json_safe(
+            model.model_dump(exclude_none=True)  # type: ignore[attr-defined]
+        )
+    return _voice_design_json_safe(model.dict(exclude_none=True))
 
 
 def _voice_design_deep_merge(
@@ -403,28 +423,76 @@ def _resolve_voice_design_profile(
     return VoiceDesignVoiceProfile(**merged_profile)
 
 
-def _voice_design_invalid_parameter_response(
+def _voice_design_invalid_parameter_content(
     field: str,
     message: str,
     received: Any = None,
     allowed_values: Optional[List[Any]] = None,
-) -> JSONResponse:
+) -> Dict[str, Any]:
     details: Dict[str, Any] = {"field": field}
     if received is not None:
         details["received"] = received
     if allowed_values:
         details["allowed_values"] = allowed_values
-    return JSONResponse(
-        status_code=400,
-        content={
-            "success": False,
-            "error": {
-                "code": "INVALID_PARAMETER",
-                "message": message,
-                "details": details,
-            },
+    return {
+        "success": False,
+        "error": {
+            "code": "INVALID_PARAMETER",
+            "message": message,
+            "details": details,
         },
-    )
+    }
+
+
+def _voice_design_request_payload(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, BaseModel):
+        return _voice_design_model_dump(payload)
+    if isinstance(payload, dict):
+        return _voice_design_json_safe(payload)
+    if payload is None:
+        return {}
+    return {"raw_payload": _voice_design_json_safe(payload)}
+
+
+def _record_sound_design_prompt(
+    *,
+    prompt_status: SoundDesignPromptStatus,
+    request_payload: Any,
+    response_payload: Dict[str, Any],
+    request_id: Optional[str] = None,
+    derived_instruction: Optional[str] = None,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    payload_doc = _voice_design_request_payload(request_payload)
+    now = datetime.utcnow()
+    language = payload_doc.get("language")
+    preset_name = payload_doc.get("preset_name")
+    text = str(payload_doc.get("text") or "")
+    doc = SoundDesignPromptModel(
+        sound_design_id=uuid4().hex,
+        status=prompt_status,
+        request_payload=payload_doc,
+        response_payload=_voice_design_json_safe(response_payload),
+        text=text,
+        language=None if language is None else str(language),
+        preset_name=None if preset_name is None else str(preset_name),
+        request_id=request_id,
+        derived_instruction=derived_instruction,
+        error_code=error_code,
+        error_message=error_message,
+        created_at=now,
+        updated_at=now,
+    ).to_bson()
+
+    try:
+        db = get_db()
+        db[SOUND_DESIGN_PROMPT_COLLECTION].insert_one(doc)
+    except Exception:
+        logger.exception(
+            "Failed to store sound design prompt log sound_design_id=%s",
+            doc["sound_design_id"],
+        )
 
 
 def _voice_design_error_allowed_values(error: Dict[str, Any]) -> Optional[List[Any]]:
@@ -501,12 +569,21 @@ async def request_validation_exception(
     if not request.url.path.startswith(VOICE_DESIGN_ROUTE.rstrip("/")):
         return await request_validation_exception_handler(request, exc)
 
+    request_payload = _voice_design_request_payload(getattr(exc, "body", None))
     errors = exc.errors()
     if not errors:
-        return _voice_design_invalid_parameter_response(
+        content = _voice_design_invalid_parameter_content(
             field="body",
             message="Invalid request body",
         )
+        _record_sound_design_prompt(
+            prompt_status="failed",
+            request_payload=request_payload,
+            response_payload=content,
+            error_code="INVALID_PARAMETER",
+            error_message="Invalid request body",
+        )
+        return JSONResponse(status_code=400, content=content)
 
     primary_error = errors[0]
     loc = tuple(primary_error.get("loc", ()))
@@ -522,12 +599,20 @@ async def request_validation_exception(
         primary_error.get("input"),
     )
     allowed_values = _voice_design_error_allowed_values(primary_error)
-    return _voice_design_invalid_parameter_response(
+    content = _voice_design_invalid_parameter_content(
         field=field,
         message=message,
         received=received,
         allowed_values=allowed_values,
     )
+    _record_sound_design_prompt(
+        prompt_status="failed",
+        request_payload=request_payload,
+        response_payload=content,
+        error_code="INVALID_PARAMETER",
+        error_message=message,
+    )
+    return JSONResponse(status_code=400, content=content)
 
 
 def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -664,47 +749,92 @@ async def _require_worker_health(
 
 @app.post(VOICE_DESIGN_ROUTE, response_model=VoiceDesignResponse)
 def create_voice_design(payload: VoiceDesignRequest) -> Any:
-    profile = _resolve_voice_design_profile(payload)
-    if profile is None:
-        return _voice_design_invalid_parameter_response(
-            field="voice_profile",
-            message="Either preset_name or voice_profile is required",
-        )
+    request_payload = _voice_design_model_dump(payload)
 
-    profile_data = _voice_design_model_dump(profile)
     try:
-        resolved_profile = SoundPromptVoiceProfile(**profile_data)
-    except ValidationError as exc:
-        errors = exc.errors()
-        primary_error = errors[0] if errors else {}
-        loc = tuple(primary_error.get("loc", ()))
-        field = "voice_profile"
-        if loc:
-            field = f"voice_profile.{'.'.join(str(part) for part in loc)}"
-        return _voice_design_invalid_parameter_response(
-            field=field,
-            message=(
+        profile = _resolve_voice_design_profile(payload)
+        if profile is None:
+            message = "Either preset_name or voice_profile is required"
+            content = _voice_design_invalid_parameter_content(
+                field="voice_profile",
+                message=message,
+            )
+            _record_sound_design_prompt(
+                prompt_status="failed",
+                request_payload=request_payload,
+                response_payload=content,
+                error_code="INVALID_PARAMETER",
+                error_message=message,
+            )
+            return JSONResponse(status_code=400, content=content)
+
+        profile_data = _voice_design_model_dump(profile)
+        try:
+            resolved_profile = SoundPromptVoiceProfile(**profile_data)
+        except ValidationError as exc:
+            errors = exc.errors()
+            primary_error = errors[0] if errors else {}
+            loc = tuple(primary_error.get("loc", ()))
+            field = "voice_profile"
+            if loc:
+                field = f"voice_profile.{'.'.join(str(part) for part in loc)}"
+            message = (
                 "Resolved voice_profile is incomplete. "
                 "Provide a complete profile or use a complete preset."
-            ),
-            received=profile_data,
-            allowed_values=_voice_design_error_allowed_values(primary_error),
+            )
+            content = _voice_design_invalid_parameter_content(
+                field=field,
+                message=message,
+                received=profile_data,
+                allowed_values=_voice_design_error_allowed_values(primary_error),
+            )
+            _record_sound_design_prompt(
+                prompt_status="failed",
+                request_payload=request_payload,
+                response_payload=content,
+                error_code="INVALID_PARAMETER",
+                error_message=message,
+            )
+            return JSONResponse(status_code=400, content=content)
+
+        derived_instruction = SoundPromptCreator.build_voice_instruction(resolved_profile)
+        request_id = str(uuid4())
+        response_payload = {
+            "success": True,
+            "request_id": request_id,
+            "derived_instruction": derived_instruction,
+        }
+        _record_sound_design_prompt(
+            prompt_status="passed",
+            request_payload=request_payload,
+            response_payload=response_payload,
+            request_id=request_id,
+            derived_instruction=derived_instruction,
         )
 
-    derived_instruction = SoundPromptCreator.build_voice_instruction(resolved_profile)
-    request_id = str(uuid4())
-    logger.info(
-        "Voice design generated request_id=%s language=%s preset=%s",
-        request_id,
-        payload.language.value,
-        payload.preset_name.value if payload.preset_name is not None else None,
-    )
-
-    return {
-        "success": True,
-        "request_id": request_id,
-        "derived_instruction": derived_instruction,
-    }
+        logger.info(
+            "Voice design generated request_id=%s language=%s preset=%s",
+            request_id,
+            payload.language.value,
+            payload.preset_name.value if payload.preset_name is not None else None,
+        )
+        return response_payload
+    except Exception as exc:
+        failure_content = {
+            "success": False,
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "Internal server error",
+            },
+        }
+        _record_sound_design_prompt(
+            prompt_status="failed",
+            request_payload=request_payload,
+            response_payload=failure_content,
+            error_code="INTERNAL_SERVER_ERROR",
+            error_message=str(exc),
+        )
+        raise
 
 
 @app.post("/uploads")
