@@ -97,6 +97,12 @@ nvm install lts/krypton
 
 ## 🚧 Current Status
 
+*Update - Mar 14 2026*
+- Completed the frontend development for custom voice designer
+- Completed backend API 
+- Completed backend Worker
+- Updated README.md
+
 *Update - Mar 11 2026*
 - Created backend classes for Sound Designer (it allows you create custom voices for your videos)
 - Created RESTAPI Methods for sound designer
@@ -109,7 +115,7 @@ nvm install lts/krypton
 - Video for the interaction will be uploaded later this week
 
 
-* 🚧 **Frontend wiring for Sound Designer** — API Wired. Need to create the Background worker to call model
+* ✅ **Frontend wiring for Sound Designer** — Completed
 * 🚧 **Frontend to display prominent figures and quotes** — On Hold
 * ✅ **Backend API (FastAPI)** — completed
 * ✅ **Frontend (Next.js)** — core video creation workflow implemented
@@ -132,6 +138,10 @@ nvm install lts/krypton
 ![Voice Cloner](docs/img-6.png)
 
 [Download Generated Voice Clone](docs/ff01812f36f34f58be696e4f74207761.wav)
+
+![Custom Voice Designer](docs/img-7.png)
+
+![Custom Voice List](docs/img-8.png)
 
 ---
 
