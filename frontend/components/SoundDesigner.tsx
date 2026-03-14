@@ -866,9 +866,51 @@ export default function SoundDesigner() {
         showApiPopup("Voice Design - API Error", responseBody);
         return;
       }
+      const requestId = typeof responseBody.request_id === "string"
+        ? responseBody.request_id.trim()
+        : "";
+      if (!requestId) {
+        const content = {
+          success: false,
+          error: {
+            message: "Voice design response is missing request_id.",
+          },
+          voice_design: responseBody,
+        };
+        setLatestResponse(content);
+        showApiPopup("Voice Design - Invalid Response", content);
+        return;
+      }
 
-      showApiPopup("Voice Design Created", responseBody);
-      setInfoMessage("Voice design request completed.");
+      const enqueueResponse = await fetch(`${apiBase}/enqueue/custom_voice_design`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+
+      const enqueueData = await parseJsonSafely<Record<string, unknown>>(enqueueResponse);
+      const enqueueBody = enqueueData ?? {
+        success: false,
+        error: {
+          message: `Unexpected empty enqueue response (${enqueueResponse.status}).`,
+        },
+      };
+      const combinedResponse = {
+        voice_design: responseBody,
+        enqueue: enqueueBody,
+      };
+      setLatestResponse(combinedResponse);
+
+      if (!enqueueResponse.ok) {
+        showApiPopup("Voice Design Created - Enqueue Failed", combinedResponse);
+        setInfoMessage("Voice design created, but enqueue failed.");
+        return;
+      }
+
+      showApiPopup("Voice Design Queued", combinedResponse);
+      setInfoMessage("Voice design completed and queued for audio generation.");
     } catch (error) {
       const content = {
         success: false,

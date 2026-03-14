@@ -109,7 +109,7 @@ nvm install lts/krypton
 - Video for the interaction will be uploaded later this week
 
 
-* 🚧 **Frontend wiring for Sound Designer** — Progressing
+* 🚧 **Frontend wiring for Sound Designer** — API Wired. Need to create the Background worker to call model
 * 🚧 **Frontend to display prominent figures and quotes** — On Hold
 * ✅ **Backend API (FastAPI)** — completed
 * ✅ **Frontend (Next.js)** — core video creation workflow implemented

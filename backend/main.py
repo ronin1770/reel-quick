@@ -58,6 +58,7 @@ from models.video_part_model import (
 from workers.queue_names import (
     AI_QUEUE_NAME,
     POST_QUEUE_NAME,
+    SOUND_DESIGNER_QUEUE_NAME,
     VIDEO_QUEUE_NAME,
     VOICE_CLONE_QUEUE_NAME,
     queue_health_key,
@@ -667,6 +668,10 @@ class VoiceCloneEnqueueResponse(BaseModel):
     status: str
 
 
+class CustomVoiceDesignEnqueueRequest(BaseModel):
+    request_id: str = Field(..., min_length=1)
+
+
 def _parse_hms(value: str) -> int:
     parts = value.split(":")
     if len(parts) != 3:
@@ -850,6 +855,67 @@ def create_voice_design(payload: VoiceDesignRequest) -> Any:
             error_message=str(exc),
         )
         raise
+
+
+@app.post("/enqueue/custom_voice_design")
+async def enqueue_custom_voice_design(
+    payload: CustomVoiceDesignEnqueueRequest,
+) -> JSONResponse:
+    request_id = payload.request_id.strip()
+    if not request_id:
+        raise HTTPException(status_code=400, detail="request_id is required")
+
+    db = get_db()
+    prompt_doc = db[SOUND_DESIGN_PROMPT_COLLECTION].find_one(
+        {"request_id": request_id},
+        {"_id": 0, "status": 1},
+    )
+    if prompt_doc is None:
+        raise HTTPException(status_code=404, detail="request_id not found")
+
+    if prompt_doc.get("status") != "passed":
+        raise HTTPException(
+            status_code=409,
+            detail="voice design is not in passed state",
+        )
+
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+    except Exception as exc:
+        logger.error("Unable to connect to Redis: %s", exc)
+        raise HTTPException(status_code=503, detail="redis unavailable") from exc
+
+    try:
+        await _require_worker_health(
+            redis,
+            SOUND_DESIGNER_QUEUE_NAME,
+            "sound designer",
+        )
+        job = await redis.enqueue_job(
+            "process_sound_design",
+            request_id,
+            _queue_name=SOUND_DESIGNER_QUEUE_NAME,
+        )
+    finally:
+        await redis.close()
+
+    if job is None:
+        raise HTTPException(status_code=500, detail="enqueue failed")
+
+    logger.info(
+        "Enqueued sound designer job request_id=%s as arq job %s",
+        request_id,
+        job.job_id,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "message": "custom voice design job queued",
+            "request_id": request_id,
+            "job_id": job.job_id,
+            "status": "queued",
+        },
+    )
 
 
 @app.post("/uploads")
