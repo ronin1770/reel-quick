@@ -48,6 +48,7 @@ from models.sound_design_prompt import (
     SoundDesignPromptModel,
     SoundDesignPromptStatus,
 )
+from models.custom_voices import CUSTOM_VOICES_COLLECTION
 from models.video_model import VideoCreate, VideoSchema, VideoUpdate
 from models.voice_job_status import VOICE_CLONE_JOB_COLLECTION, VoiceCloneJobModel
 from models.video_part_model import (
@@ -478,6 +479,7 @@ def _record_sound_design_prompt(
         request_payload=payload_doc,
         response_payload=_voice_design_json_safe(response_payload),
         text=text,
+        custom_voice_text=text,
         language=None if language is None else str(language),
         preset_name=None if preset_name is None else str(preset_name),
         request_id=request_id,
@@ -670,6 +672,14 @@ class VoiceCloneEnqueueResponse(BaseModel):
 
 class CustomVoiceDesignEnqueueRequest(BaseModel):
     request_id: str = Field(..., min_length=1)
+
+
+class CustomVoiceStatusResponse(BaseModel):
+    request_id: str
+    status: str
+    custom_voice_available: bool
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 def _parse_hms(value: str) -> int:
@@ -1324,6 +1334,126 @@ def download_voice_clone(voice_clone_job_id: str) -> FileResponse:
         path=output_path,
         media_type="audio/wav",
         filename=f"{voice_clone_job_id}.wav",
+    )
+
+
+@app.get("/custom-voices")
+def list_custom_voices() -> List[Dict[str, Any]]:
+    db = get_db()
+    cursor = (
+        db[CUSTOM_VOICES_COLLECTION]
+        .find({}, {"_id": 0})
+        .sort("updated_at", -1)
+    )
+    return [dict(doc) for doc in cursor]
+
+
+@app.get("/custom-voices/status/{request_id}", response_model=CustomVoiceStatusResponse)
+def get_custom_voice_status(request_id: str) -> Dict[str, Any]:
+    normalized_request_id = request_id.strip()
+    if not normalized_request_id:
+        raise HTTPException(status_code=400, detail="request_id is required")
+
+    db = get_db()
+    voice_doc = db[CUSTOM_VOICES_COLLECTION].find_one(
+        {"request_id": normalized_request_id},
+        {"_id": 0, "request_id": 1},
+    )
+    if voice_doc is not None:
+        return {
+            "request_id": normalized_request_id,
+            "status": "completed",
+            "custom_voice_available": True,
+            "error_code": None,
+            "error_message": None,
+        }
+
+    prompt_doc = db[SOUND_DESIGN_PROMPT_COLLECTION].find_one(
+        {"request_id": normalized_request_id},
+        {"_id": 0, "status": 1, "error_code": 1, "error_message": 1},
+        sort=[("updated_at", -1)],
+    )
+    if prompt_doc is None:
+        return {
+            "request_id": normalized_request_id,
+            "status": "not_found",
+            "custom_voice_available": False,
+            "error_code": "REQUEST_NOT_FOUND",
+            "error_message": "request_id not found",
+        }
+
+    prompt_status = str(prompt_doc.get("status") or "").strip().lower()
+    if prompt_status == "failed":
+        return {
+            "request_id": normalized_request_id,
+            "status": "failed",
+            "custom_voice_available": False,
+            "error_code": prompt_doc.get("error_code"),
+            "error_message": prompt_doc.get("error_message"),
+        }
+
+    return {
+        "request_id": normalized_request_id,
+        "status": "in_progress",
+        "custom_voice_available": False,
+        "error_code": None,
+        "error_message": None,
+    }
+
+
+@app.get("/custom-voices/{request_id}")
+def get_custom_voice(request_id: str) -> Dict[str, Any]:
+    normalized_request_id = request_id.strip()
+    if not normalized_request_id:
+        raise HTTPException(status_code=400, detail="request_id is required")
+
+    db = get_db()
+    voice_doc = db[CUSTOM_VOICES_COLLECTION].find_one(
+        {"request_id": normalized_request_id},
+        {"_id": 0},
+    )
+    if voice_doc is None:
+        raise HTTPException(status_code=404, detail="custom voice not found")
+
+    prompt_doc = db[SOUND_DESIGN_PROMPT_COLLECTION].find_one(
+        {"request_id": normalized_request_id},
+        {"_id": 0},
+        sort=[("updated_at", -1)],
+    )
+
+    return {
+        "custom_voice": dict(voice_doc),
+        "sound_design_prompt": dict(prompt_doc) if prompt_doc is not None else None,
+    }
+
+
+@app.get("/custom-voices/{request_id}/audio")
+def stream_custom_voice_audio(request_id: str) -> FileResponse:
+    normalized_request_id = request_id.strip()
+    if not normalized_request_id:
+        raise HTTPException(status_code=400, detail="request_id is required")
+
+    db = get_db()
+    voice_doc = db[CUSTOM_VOICES_COLLECTION].find_one(
+        {"request_id": normalized_request_id},
+        {"_id": 0, "output_file_location": 1},
+    )
+    if voice_doc is None:
+        raise HTTPException(status_code=404, detail="custom voice not found")
+
+    output_file_location = str(voice_doc.get("output_file_location") or "").strip()
+    if not output_file_location:
+        raise HTTPException(status_code=404, detail="output file not available")
+
+    output_path = Path(output_file_location)
+    if not output_path.exists():
+        raise HTTPException(status_code=404, detail="output file not found")
+
+    media_type = "audio/mpeg" if output_path.suffix.lower() == ".mp3" else "audio/wav"
+    return FileResponse(
+        path=output_path,
+        media_type=media_type,
+        filename=output_path.name,
     )
 
 

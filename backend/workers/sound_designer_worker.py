@@ -127,6 +127,7 @@ def _upsert_custom_voice(
     request_id: str,
     voice_name: str,
     instructions: str,
+    custom_voice_text: str,
     output_file_location: str,
 ) -> None:
     now = _now_utc()
@@ -136,6 +137,7 @@ def _upsert_custom_voice(
             "$set": {
                 "voice_name": voice_name,
                 "instructions": instructions,
+                "custom_voice_text": custom_voice_text,
                 "output_file_location": output_file_location,
                 "updated_at": now,
             },
@@ -232,6 +234,7 @@ async def process_sound_design(ctx: Dict[str, Any], request_id: str) -> bool:
         request_id=normalized_request_id,
         voice_name=voice_name,
         instructions=instructions,
+        custom_voice_text=input_text,
         output_file_location=output_file,
     )
     logger.info(

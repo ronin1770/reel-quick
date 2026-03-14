@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./SoundDesigner.module.css";
 
 type DesignerTab = "custom" | "presets";
@@ -628,6 +629,7 @@ function VoicePresetsTab({
 }
 
 export default function SoundDesigner() {
+  const router = useRouter();
   const apiBase = useMemo(resolveApiBase, []);
 
   const [activeTab, setActiveTab] = useState<DesignerTab>("custom");
@@ -911,6 +913,7 @@ export default function SoundDesigner() {
 
       showApiPopup("Voice Design Queued", combinedResponse);
       setInfoMessage("Voice design completed and queued for audio generation.");
+      router.push(`/custom-voices?request_id=${encodeURIComponent(requestId)}`);
     } catch (error) {
       const content = {
         success: false,

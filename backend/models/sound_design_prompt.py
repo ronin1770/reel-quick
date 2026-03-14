@@ -24,6 +24,7 @@ class SoundDesignPromptModel:
     request_payload: Dict[str, Any]
     response_payload: Dict[str, Any]
     text: str
+    custom_voice_text: str = ""
     language: Optional[str] = None
     preset_name: Optional[str] = None
     request_id: Optional[str] = None
@@ -40,6 +41,7 @@ class SoundDesignPromptModel:
             "request_payload": self.request_payload,
             "response_payload": self.response_payload,
             "text": self.text,
+            "custom_voice_text": self.custom_voice_text,
             "language": self.language,
             "preset_name": self.preset_name,
             "request_id": self.request_id,
@@ -58,6 +60,7 @@ class SoundDesignPromptModel:
             request_payload=doc.get("request_payload", {}),
             response_payload=doc.get("response_payload", {}),
             text=doc.get("text", ""),
+            custom_voice_text=doc.get("custom_voice_text", ""),
             language=doc.get("language"),
             preset_name=doc.get("preset_name"),
             request_id=doc.get("request_id"),
@@ -75,6 +78,7 @@ class SoundDesignPromptSchema(BaseModel):
     request_payload: Dict[str, Any]
     response_payload: Dict[str, Any]
     text: str
+    custom_voice_text: str = ""
     language: Optional[str] = None
     preset_name: Optional[str] = None
     request_id: Optional[str] = None
@@ -91,6 +95,7 @@ class SoundDesignPromptCreate(BaseModel):
     request_payload: Dict[str, Any] = Field(default_factory=dict)
     response_payload: Dict[str, Any] = Field(default_factory=dict)
     text: constr(strip_whitespace=True, min_length=1)
+    custom_voice_text: Optional[constr(strip_whitespace=True, min_length=1)] = None
     language: Optional[str] = None
     preset_name: Optional[str] = None
     request_id: Optional[str] = None
@@ -102,6 +107,7 @@ class SoundDesignPromptCreate(BaseModel):
 class SoundDesignPromptUpdate(BaseModel):
     status: Optional[SoundDesignPromptStatus] = None
     response_payload: Optional[Dict[str, Any]] = None
+    custom_voice_text: Optional[constr(strip_whitespace=True, min_length=1)] = None
     request_id: Optional[str] = None
     derived_instruction: Optional[str] = None
     error_code: Optional[str] = None
