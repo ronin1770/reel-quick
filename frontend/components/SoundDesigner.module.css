@@ -161,8 +161,6 @@
 .selectMock {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1.4rem;
   min-width: 220px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 0.55rem;
@@ -171,6 +169,7 @@
   font-weight: 600;
   color: var(--text-high);
   background: rgba(14, 8, 30, 0.86);
+  appearance: none;
 }
 
 .chevron {
@@ -223,6 +222,43 @@
 
 .sideHeading {
   font-size: clamp(1.15rem, 1.4vw, 1.42rem);
+}
+
+.sideBody {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.88rem;
+}
+
+.fieldLabel {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-high);
+}
+
+.textareaInput,
+.textInput {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.55rem;
+  padding: 0.62rem 0.75rem;
+  font-size: 0.98rem;
+  color: var(--text-high);
+  background: rgba(9, 5, 22, 0.88);
+}
+
+.textareaInput {
+  resize: vertical;
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
 }
 
 .textInputMock {
@@ -283,10 +319,22 @@
   box-shadow: 0 12px 28px rgba(255, 173, 86, 0.3);
 }
 
+.generateButton:disabled,
+.applyButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .presetsList {
   display: flex;
   flex-direction: column;
   gap: 0.72rem;
+}
+
+.presetActionRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.72rem;
 }
 
 .presetTitle {
@@ -328,12 +376,64 @@
   background: linear-gradient(160deg, rgba(18, 10, 35, 0.9), rgba(9, 5, 21, 0.98));
 }
 
+.helperText {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.statusMessage,
+.errorMessage {
+  margin: 0;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.92rem;
+}
+
+.statusMessage {
+  color: #d2ffe8;
+  background: rgba(22, 125, 84, 0.24);
+  border-color: rgba(102, 255, 184, 0.34);
+}
+
+.errorMessage {
+  color: #ffd6e2;
+  background: rgba(139, 36, 67, 0.28);
+  border-color: rgba(255, 114, 154, 0.34);
+}
+
+.responseCard {
+  padding: 1rem;
+}
+
+.responseHeading {
+  margin: 0 0 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.responsePre {
+  margin: 0;
+  max-height: 420px;
+  overflow: auto;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #e6f0ff;
+  background: rgba(6, 5, 18, 0.88);
+}
+
 .tabButton:focus-visible,
 .pillButton:focus-visible,
 .selectMock:focus-visible,
 .previewButton:focus-visible,
 .generateButton:focus-visible,
-.applyButton:focus-visible {
+.applyButton:focus-visible,
+.textareaInput:focus-visible,
+.textInput:focus-visible {
   outline: 2px solid var(--neon-cyan);
   outline-offset: 2px;
 }
