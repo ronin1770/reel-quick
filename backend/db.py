@@ -40,6 +40,7 @@ def init_db() -> Database:
         "raw_posts_data",
         "voice_clone_job",
         "sound_design_prompt",
+        "custom_voices",
     ):
         if name not in existing:
             db.create_collection(name)
@@ -48,6 +49,7 @@ def init_db() -> Database:
     db.raw_posts_data.create_index("code", unique=True)
     db.voice_clone_job.create_index("job_id", unique=True)
     db.sound_design_prompt.create_index("sound_design_id", unique=True)
+    db.custom_voices.create_index("request_id", unique=True)
     return db
 
 
