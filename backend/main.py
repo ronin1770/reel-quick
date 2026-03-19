@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
+import sys
+import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -106,6 +111,298 @@ async def unhandled_exception_handler(
 
 VOICE_DESIGN_ROUTE = "/api/v1/voice-design/"
 VOICE_DESIGN_PRESETS_ROUTE = "/api/v1/voice-design/presets"
+CONTROL_PANEL_WORKERS_ROUTE = "/api/v1/control-panel/workers"
+CONTROL_PANEL_ERROR_LOG_ROUTE = "/api/v1/control-panel/error-log"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONTROL_PANEL_RUNTIME_DIR_RAW = Path(
+    os.getenv("CONTROL_PANEL_RUNTIME_DIR", "./llogs/control_panel")
+)
+if CONTROL_PANEL_RUNTIME_DIR_RAW.is_absolute():
+    CONTROL_PANEL_RUNTIME_DIR = CONTROL_PANEL_RUNTIME_DIR_RAW
+else:
+    CONTROL_PANEL_RUNTIME_DIR = REPO_ROOT / CONTROL_PANEL_RUNTIME_DIR_RAW
+CONTROL_PANEL_WORKER_LOG_DIR = CONTROL_PANEL_RUNTIME_DIR / "workers"
+CONTROL_PANEL_PID_FILE = CONTROL_PANEL_RUNTIME_DIR / "worker_pids.json"
+
+CONTROL_PANEL_WORKERS: Dict[str, Dict[str, str]] = {
+    "video_maker": {
+        "name": "Video Maker Worker",
+        "settings_path": "backend.workers.video_maker.WorkerSettings",
+    },
+    "ai_worker": {
+        "name": "AI Worker",
+        "settings_path": "backend.workers.ai_worker.WorkerSettings",
+    },
+    "post_worker": {
+        "name": "Post Worker",
+        "settings_path": "backend.workers.post_worker.WorkerSettings",
+    },
+    "voice_cloner_worker": {
+        "name": "Voice Cloner Worker",
+        "settings_path": "backend.workers.voice_cloner_worker.WorkerSettings",
+    },
+    "sound_designer_worker": {
+        "name": "Sound Designer Worker",
+        "settings_path": "backend.workers.sound_designer_worker.WorkerSettings",
+    },
+}
+
+
+class WorkerControlStatus(BaseModel):
+    key: str
+    name: str
+    settings_path: str
+    running: bool
+    pid: Optional[int] = None
+    started_at: Optional[str] = None
+
+
+class WorkerControlListResponse(BaseModel):
+    workers: List[WorkerControlStatus]
+
+
+class WorkerControlActionResponse(BaseModel):
+    message: str
+    worker: WorkerControlStatus
+
+
+class WorkerErrorLogResponse(BaseModel):
+    logs: List[str] = Field(default_factory=list)
+
+
+class WorkerProcessManager:
+    def __init__(self, pid_file: Path, log_dir: Path) -> None:
+        self._pid_file = pid_file
+        self._log_dir = log_dir
+        self._lock = threading.Lock()
+        self._ensure_runtime_paths()
+
+    def _ensure_runtime_paths(self) -> None:
+        self._pid_file.parent.mkdir(parents=True, exist_ok=True)
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+
+    def _read_state(self) -> Dict[str, Dict[str, Any]]:
+        if not self._pid_file.exists():
+            return {}
+        try:
+            raw = json.loads(self._pid_file.read_text(encoding="utf-8"))
+        except Exception:
+            logger.exception("Failed to read worker PID file at %s", self._pid_file)
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        state: Dict[str, Dict[str, Any]] = {}
+        for key, value in raw.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+            pid = value.get("pid")
+            if not isinstance(pid, int) or pid <= 0:
+                continue
+            state[key] = {
+                "pid": pid,
+                "started_at": str(value.get("started_at") or ""),
+                "command": str(value.get("command") or ""),
+            }
+        return state
+
+    def _write_state(self, state: Dict[str, Dict[str, Any]]) -> None:
+        self._ensure_runtime_paths()
+        payload = json.dumps(state, indent=2, sort_keys=True)
+        tmp_file = self._pid_file.with_suffix(".tmp")
+        tmp_file.write_text(payload, encoding="utf-8")
+        tmp_file.replace(self._pid_file)
+
+    def _is_pid_alive(self, pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+
+    def _pid_matches_worker(self, pid: int, settings_path: str) -> bool:
+        cmdline_path = Path(f"/proc/{pid}/cmdline")
+        if not cmdline_path.exists():
+            return True
+        try:
+            cmdline = cmdline_path.read_bytes().replace(b"\x00", b" ").decode(
+                "utf-8",
+                errors="ignore",
+            )
+        except OSError:
+            return True
+        return settings_path in cmdline and "arq" in cmdline
+
+    def _cleanup_stale_state(
+        self, state: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        clean: Dict[str, Dict[str, Any]] = {}
+        for key, entry in state.items():
+            spec = CONTROL_PANEL_WORKERS.get(key)
+            if spec is None:
+                continue
+            pid = entry.get("pid")
+            if not isinstance(pid, int) or pid <= 0:
+                continue
+            if not self._is_pid_alive(pid):
+                continue
+            if not self._pid_matches_worker(pid, spec["settings_path"]):
+                logger.warning(
+                    "Skipping stale worker PID tracking key=%s pid=%s due to command mismatch",
+                    key,
+                    pid,
+                )
+                continue
+            clean[key] = entry
+        return clean
+
+    def _build_status_from_state(
+        self,
+        worker_key: str,
+        state: Dict[str, Dict[str, Any]],
+    ) -> WorkerControlStatus:
+        spec = CONTROL_PANEL_WORKERS[worker_key]
+        entry = state.get(worker_key)
+        if entry is None:
+            return WorkerControlStatus(
+                key=worker_key,
+                name=spec["name"],
+                settings_path=spec["settings_path"],
+                running=False,
+                pid=None,
+                started_at=None,
+            )
+
+        pid = entry.get("pid")
+        if not isinstance(pid, int):
+            return WorkerControlStatus(
+                key=worker_key,
+                name=spec["name"],
+                settings_path=spec["settings_path"],
+                running=False,
+                pid=None,
+                started_at=None,
+            )
+
+        return WorkerControlStatus(
+            key=worker_key,
+            name=spec["name"],
+            settings_path=spec["settings_path"],
+            running=True,
+            pid=pid,
+            started_at=str(entry.get("started_at") or "") or None,
+        )
+
+    def list_workers(self) -> List[WorkerControlStatus]:
+        with self._lock:
+            state = self._cleanup_stale_state(self._read_state())
+            self._write_state(state)
+            return [
+                self._build_status_from_state(key, state)
+                for key in CONTROL_PANEL_WORKERS
+            ]
+
+    def start_worker(self, worker_key: str) -> Tuple[WorkerControlStatus, bool]:
+        spec = CONTROL_PANEL_WORKERS[worker_key]
+        with self._lock:
+            state = self._cleanup_stale_state(self._read_state())
+            current = self._build_status_from_state(worker_key, state)
+            if current.running:
+                return current, False
+
+            self._ensure_runtime_paths()
+            worker_log_path = self._log_dir / f"{worker_key}.log"
+            command = [sys.executable, "-m", "arq", spec["settings_path"]]
+            environment = dict(os.environ)
+            environment["PYTHONUNBUFFERED"] = "1"
+
+            with worker_log_path.open("ab") as worker_log_file:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(REPO_ROOT),
+                    env=environment,
+                    stdout=worker_log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+
+            time.sleep(0.2)
+            if process.poll() is not None:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to start worker {worker_key}",
+                )
+
+            state[worker_key] = {
+                "pid": process.pid,
+                "started_at": datetime.utcnow().isoformat(),
+                "command": " ".join(command),
+            }
+            self._write_state(state)
+            logger.info("Started worker key=%s pid=%s", worker_key, process.pid)
+            return self._build_status_from_state(worker_key, state), True
+
+    def stop_worker(self, worker_key: str) -> Tuple[WorkerControlStatus, bool]:
+        spec = CONTROL_PANEL_WORKERS[worker_key]
+        with self._lock:
+            state = self._cleanup_stale_state(self._read_state())
+            current = self._build_status_from_state(worker_key, state)
+            if not current.running or current.pid is None:
+                state.pop(worker_key, None)
+                self._write_state(state)
+                return self._build_status_from_state(worker_key, state), False
+
+            pid = current.pid
+            if not self._pid_matches_worker(pid, spec["settings_path"]):
+                state.pop(worker_key, None)
+                self._write_state(state)
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Refused to stop pid={pid}; process does not match worker {worker_key}"
+                    ),
+                )
+
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                state.pop(worker_key, None)
+                self._write_state(state)
+                return self._build_status_from_state(worker_key, state), False
+
+            timeout_at = time.time() + 5.0
+            while time.time() < timeout_at:
+                if not self._is_pid_alive(pid):
+                    break
+                time.sleep(0.2)
+
+            if self._is_pid_alive(pid):
+                os.kill(pid, signal.SIGKILL)
+                hard_timeout_at = time.time() + 1.0
+                while time.time() < hard_timeout_at:
+                    if not self._is_pid_alive(pid):
+                        break
+                    time.sleep(0.1)
+
+            if self._is_pid_alive(pid):
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Unable to stop worker {worker_key} pid={pid}",
+                )
+
+            state.pop(worker_key, None)
+            self._write_state(state)
+            logger.info("Stopped worker key=%s pid=%s", worker_key, pid)
+            return self._build_status_from_state(worker_key, state), True
+
+
+worker_process_manager = WorkerProcessManager(
+    pid_file=CONTROL_PANEL_PID_FILE,
+    log_dir=CONTROL_PANEL_WORKER_LOG_DIR,
+)
 
 
 class VoiceDesignLanguage(str, Enum):
@@ -762,6 +1059,47 @@ async def _require_worker_health(
         status_code=503,
         detail=f"{worker_label} worker unavailable",
     )
+
+
+def _normalize_worker_key(worker_key: str) -> str:
+    normalized = worker_key.strip().lower()
+    if normalized not in CONTROL_PANEL_WORKERS:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    return normalized
+
+
+@app.get(CONTROL_PANEL_WORKERS_ROUTE, response_model=WorkerControlListResponse)
+def list_control_panel_workers() -> WorkerControlListResponse:
+    workers = worker_process_manager.list_workers()
+    return WorkerControlListResponse(workers=workers)
+
+
+@app.post(
+    f"{CONTROL_PANEL_WORKERS_ROUTE}/{{worker_key}}/start",
+    response_model=WorkerControlActionResponse,
+)
+def start_control_panel_worker(worker_key: str) -> WorkerControlActionResponse:
+    normalized_key = _normalize_worker_key(worker_key)
+    worker, started = worker_process_manager.start_worker(normalized_key)
+    message = f"{worker.name} started" if started else f"{worker.name} already running"
+    return WorkerControlActionResponse(message=message, worker=worker)
+
+
+@app.post(
+    f"{CONTROL_PANEL_WORKERS_ROUTE}/{{worker_key}}/stop",
+    response_model=WorkerControlActionResponse,
+)
+def stop_control_panel_worker(worker_key: str) -> WorkerControlActionResponse:
+    normalized_key = _normalize_worker_key(worker_key)
+    worker, stopped = worker_process_manager.stop_worker(normalized_key)
+    message = f"{worker.name} stopped" if stopped else f"{worker.name} already stopped"
+    return WorkerControlActionResponse(message=message, worker=worker)
+
+
+@app.get(CONTROL_PANEL_ERROR_LOG_ROUTE, response_model=WorkerErrorLogResponse)
+def list_control_panel_error_log() -> WorkerErrorLogResponse:
+    # Placeholder for now; log aggregation will be added in a later step.
+    return WorkerErrorLogResponse(logs=[])
 
 
 @app.get(VOICE_DESIGN_PRESETS_ROUTE)

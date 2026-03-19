@@ -74,6 +74,9 @@ export default function RootLayout({
                 <Link className="app-nav__link" href="/custom-voices">
                   Custom Voices
                 </Link>
+                <Link className="app-nav__link" href="/control-panel">
+                  Control Panel
+                </Link>
               </nav>
               <div className="app-header__actions">
                 <Link

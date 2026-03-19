@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="/home/farhan/reel-quick/"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 source "/home/farhan/renv/bin/activate"
 
-NODE_BIN="/root/.nvm/versions/node/v24.13.0/bin"
-export PATH="$NODE_BIN:/usr/bin:/usr/local/bin"
+NODE_BIN="/root/.nvm/versions/node/v24.14.0/bin"
+export PATH="$NODE_BIN:$PATH"
 
 cleanup() {
   for pid in "${pids[@]:-}"; do
@@ -38,6 +39,10 @@ pids+=("$!")
 
 # Start ARQ voice clone worker
 arq backend.workers.voice_cloner_worker.WorkerSettings &
+pids+=("$!")
+
+# Start ARQ sound designer worker
+arq backend.workers.sound_designer_worker.WorkerSettings &
 pids+=("$!")
 
 # Start frontend (Next.js dev server)
