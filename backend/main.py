@@ -213,6 +213,20 @@ class WorkerProcessManager:
         tmp_file.replace(self._pid_file)
 
     def _is_pid_alive(self, pid: int) -> bool:
+        # Reap exited child processes when possible to avoid zombie PIDs being
+        # treated as running.
+        self._reap_child_process(pid)
+
+        stat_path = Path(f"/proc/{pid}/stat")
+        if stat_path.exists():
+            try:
+                stat_parts = stat_path.read_text(encoding="utf-8").split()
+                if len(stat_parts) > 2 and stat_parts[2] == "Z":
+                    self._reap_child_process(pid)
+                    return False
+            except OSError:
+                pass
+
         try:
             os.kill(pid, 0)
             return True
@@ -220,6 +234,15 @@ class WorkerProcessManager:
             return False
         except PermissionError:
             return True
+        except OSError:
+            return False
+
+    def _reap_child_process(self, pid: int) -> bool:
+        try:
+            reaped_pid, _ = os.waitpid(pid, os.WNOHANG)
+            return reaped_pid == pid
+        except ChildProcessError:
+            return False
         except OSError:
             return False
 
