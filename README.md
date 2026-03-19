@@ -148,6 +148,10 @@ nvm install lts/krypton
 
 ![Custom Voice List](docs/img-8.png)
 
+![Control Panel](docs/img-9.png)
+
+
+
 ---
 
 ## 🗺️ Roadmap
