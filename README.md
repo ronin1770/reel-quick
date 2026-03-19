@@ -97,6 +97,10 @@ nvm install lts/krypton
 
 ## 🚧 Current Status
 
+*Update - Mar 19 2026*
+- Completed the wiring the control panel
+- Using the control panel you turn on and off backend workers
+
 *Update - Mar 14 2026*
 - Completed the frontend development for custom voice designer
 - Completed backend API 
@@ -114,7 +118,8 @@ nvm install lts/krypton
 - Interface was created
 - Video for the interaction will be uploaded later this week
 
-
+* 🔎 **Add functionality to logs for each worker in the control panel** — Scoped
+* ✅ **Added Control panel to start/stop workers** — Completed
 * ✅ **Frontend wiring for Sound Designer** — Completed
 * 🚧 **Frontend to display prominent figures and quotes** — On Hold
 * ✅ **Backend API (FastAPI)** — completed
