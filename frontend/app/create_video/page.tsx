@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type VideoPart = {
   id: string;
@@ -23,6 +23,12 @@ type VideoFile = {
   location: string | null;
   status: UploadStatus;
   error?: string;
+};
+
+type PendingPartIntent = {
+  fileId: string;
+  start: number;
+  end: number;
 };
 
 const API_BASE =
@@ -89,6 +95,8 @@ export default function CreateVideoPage() {
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [isEnqueued, setIsEnqueued] = useState(false);
+  const [pendingPartIntent, setPendingPartIntent] =
+    useState<PendingPartIntent | null>(null);
   const [videoErrors, setVideoErrors] = useState<{ title?: string }>({});
   const [partErrors, setPartErrors] = useState<{
     video?: string;
@@ -137,6 +145,16 @@ export default function CreateVideoPage() {
       setStartTime(0);
     }
   }, [duration, endTime, startTime]);
+
+  useEffect(() => {
+    if (activeFile?.status !== "ready") return;
+
+    setPartErrors((prev) => {
+      if (!prev.upload) return prev;
+      const { upload: _upload, ...rest } = prev;
+      return rest;
+    });
+  }, [activeFile?.status]);
 
   const handleBrowse = () => {
     fileInputRef.current?.click();
@@ -231,6 +249,57 @@ export default function CreateVideoPage() {
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
     return results;
   };
+
+  const addPartEntry = useCallback((file: VideoFile, start: number, end: number) => {
+    if (!file.location) return;
+
+    const selectedDuration = Math.max(0, end - start);
+    const partId = `${file.file.name}-${Date.now()}`;
+
+    setParts((prev) => [
+      ...prev,
+      {
+        id: partId,
+        fileName: file.file.name,
+        fileLocation: file.location,
+        start,
+        end,
+        selectedDuration: Number(selectedDuration.toFixed(2)),
+        synced: false,
+      },
+    ]);
+    setIsEnqueued(false);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingPartIntent) return;
+
+    const targetFile = files.find((item) => item.id === pendingPartIntent.fileId);
+    if (!targetFile) {
+      setPendingPartIntent(null);
+      return;
+    }
+
+    if (targetFile.status === "error") {
+      setPendingPartIntent(null);
+      setPartErrors((prev) => ({
+        ...prev,
+        upload: targetFile.error ?? "Upload failed. Please upload the clip first.",
+      }));
+      return;
+    }
+
+    if (targetFile.status !== "ready" || !targetFile.location) return;
+
+    addPartEntry(targetFile, pendingPartIntent.start, pendingPartIntent.end);
+    setPendingPartIntent(null);
+    setStatusMessage("Upload complete. Part added.");
+    setPartErrors((prev) => {
+      if (!prev.upload) return prev;
+      const { upload: _upload, ...rest } = prev;
+      return rest;
+    });
+  }, [pendingPartIntent, files, addPartEntry]);
 
   const handleAddFiles = async () => {
     if (pendingFiles.length === 0 || isUploadingFiles) return;
@@ -458,8 +527,13 @@ export default function CreateVideoPage() {
     }
 
     if (activeFile.status === "uploading") {
+      setPendingPartIntent({
+        fileId: activeFile.id,
+        start: startTime,
+        end: endTime,
+      });
       setPartErrors({
-        upload: "Upload in progress. Please wait.",
+        upload: "Upload in progress. Part will be added automatically.",
       });
       return;
     }
@@ -479,22 +553,7 @@ export default function CreateVideoPage() {
     }
 
     setIsAddingPart(true);
-    const selectedDuration = Math.max(0, endTime - startTime);
-    const partId = `${activeFile.file.name}-${Date.now()}`;
-
-    setParts((prev) => [
-      ...prev,
-      {
-        id: partId,
-        fileName: activeFile.file.name,
-        fileLocation: activeFile.location,
-        start: startTime,
-        end: endTime,
-        selectedDuration: Number(selectedDuration.toFixed(2)),
-        synced: false,
-      },
-    ]);
-    setIsEnqueued(false);
+    addPartEntry(activeFile, startTime, endTime);
     setStatusMessage("Part queued. Save it with Create Video.");
     setIsAddingPart(false);
   };
