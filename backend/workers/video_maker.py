@@ -74,17 +74,18 @@ def _format_hms(total_seconds: float) -> str:
 def _build_processing_payload(
     parts: List[Dict[str, Any]], output_name: str
 ) -> Dict[str, Any]:
-    inputs: List[str] = []
-    durations: Dict[str, Dict[str, float]] = {}
-    for index, part in enumerate(parts):
-        inputs.append(part["file_location"])
-        durations[str(index)] = {
-            "start": _parse_hms(part["start_time"]),
-            "end": _parse_hms(part["end_time"]),
-        }
+    clips: List[Dict[str, Any]] = []
+    for part in parts:
+        clips.append(
+            {
+                "part_number": part["part_number"],
+                "file_location": part["file_location"],
+                "start": _parse_hms(part["start_time"]),
+                "end": _parse_hms(part["end_time"]),
+            }
+        )
     return {
-        "inputs": inputs,
-        "durations": durations,
+        "clips": clips,
         "output_file_name": output_name,
     }
 

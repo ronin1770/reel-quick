@@ -10,7 +10,7 @@
 
 from moviepy import *
 #import numpy as np
-import json,sys,os,subprocess
+import json,sys,os,subprocess,tempfile
 from config import *
 from backend.logger import get_logger
 
@@ -37,13 +37,12 @@ class VideoAutomation:
             except Exception:
                 pass
 
-            inputs      = self.processing_data["inputs"]
-            durations   = self.processing_data["durations"]
+            clip_specs = self._read_clip_specs()
             output_file = self.processing_data["output_file_name"]
 
             self.logger.info(
-                "Processing video config. inputs=%s output=%s",
-                len(inputs),
+                "Processing video config. clips=%s output=%s",
+                len(clip_specs),
                 output_file,
             )
             
@@ -55,27 +54,50 @@ class VideoAutomation:
             ffmpeg_params = ["-filter_threads", "1", "-filter_complex_threads", "1"]
             drop_audio = True
 
-            # Render each clip to a temp file to keep memory usage low
-            temp_dir = os.path.join(OUTPUT_FOLDER, "_tmp_segments")
-            os.makedirs(temp_dir, exist_ok=True)
+            # Render each clip to an isolated temp folder to prevent cross-job collisions.
+            output_root = os.path.abspath(OUTPUT_FOLDER or ".")
+            os.makedirs(output_root, exist_ok=True)
+            temp_dir = tempfile.mkdtemp(prefix="segments_", dir=output_root)
             temp_files = []
             concat_list_path = None
 
-            # Process each input video according to durations
-            # Process each input video according to durations
-            for index, video_filename in enumerate(inputs):
-                duration_info = durations.get(str(index), None)
-                if not duration_info:
-                    continue  # Skip if no duration info for this file
+            # Process each input video according to durations.
+            for index, clip_spec in enumerate(clip_specs):
+                part_number = clip_spec.get("part_number", index + 1)
+                video_filename = clip_spec["file_location"]
+                start = clip_spec["start"]
+                end = clip_spec["end"]
+                if end <= start:
+                    self.logger.warning(
+                        "Skipping part=%s due to invalid duration start=%s end=%s",
+                        part_number,
+                        start,
+                        end,
+                    )
+                    continue
 
                 # Construct full path to the video file
-                video_path = os.path.join(INPUT_FOLDER, video_filename)
+                if os.path.isabs(video_filename):
+                    video_path = video_filename
+                else:
+                    video_path = os.path.join(INPUT_FOLDER, video_filename)
+
+                if not os.path.exists(video_path):
+                    raise FileNotFoundError(f"Clip not found for part={part_number}: {video_path}")
+
+                self.logger.info(
+                    "Rendering clip part=%s source=%s start=%.3f end=%.3f",
+                    part_number,
+                    video_path,
+                    start,
+                    end,
+                )
 
                 # Load and process the clip
                 clip = VideoFileClip(video_path)
                 if target_fps is None:
                     target_fps = clip.fps or 30
-                clip = clip.subclipped(duration_info["start"], duration_info["end"])
+                clip = clip.subclipped(start, end)
                 clip = clip.with_effects([vfx.FadeOut(1)]).resized(width=target_width)
                 if target_size is None:
                     target_size = clip.size
@@ -86,7 +108,10 @@ class VideoAutomation:
                     clip = clip.without_audio()
 
                 # Write the normalized segment to disk, then close the clip
-                temp_file = os.path.join(temp_dir, f"segment_{index}.mp4")
+                temp_file = os.path.join(
+                    temp_dir,
+                    f"segment_{index:03d}_part_{part_number}.mp4",
+                )
                 clip.write_videofile(
                     temp_file,
                     codec="libx264",
@@ -103,7 +128,7 @@ class VideoAutomation:
                 return False
 
             # Concatenate using ffmpeg concat demuxer to avoid loading everything into RAM
-            output_path = os.path.join(OUTPUT_FOLDER, output_file)
+            output_path = os.path.join(output_root, output_file)
             concat_list_path = os.path.join(temp_dir, "concat_list.txt")
             with open(concat_list_path, "w") as concat_file:
                 for temp_file in temp_files:
@@ -160,10 +185,53 @@ class VideoAutomation:
                     pass
             if "temp_dir" in locals():
                 try:
-                    if os.path.isdir(temp_dir) and not os.listdir(temp_dir):
-                        os.rmdir(temp_dir)
+                    if os.path.isdir(temp_dir):
+                        for name in os.listdir(temp_dir):
+                            file_path = os.path.join(temp_dir, name)
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                        if not os.listdir(temp_dir):
+                            os.rmdir(temp_dir)
                 except Exception:
                     pass
+
+    def _read_clip_specs(self):
+        clips = self.processing_data.get("clips")
+        if isinstance(clips, list):
+            normalized = []
+            for index, clip in enumerate(clips):
+                if not isinstance(clip, dict):
+                    continue
+                file_location = clip.get("file_location")
+                if not file_location:
+                    continue
+                normalized.append(
+                    {
+                        "part_number": clip.get("part_number", index + 1),
+                        "file_location": str(file_location),
+                        "start": float(clip.get("start", 0.0)),
+                        "end": float(clip.get("end", 0.0)),
+                    }
+                )
+            return normalized
+
+        # Backward compatibility with legacy payload format.
+        inputs = self.processing_data.get("inputs", [])
+        durations = self.processing_data.get("durations", {})
+        normalized = []
+        for index, video_filename in enumerate(inputs):
+            duration_info = durations.get(str(index))
+            if not duration_info:
+                continue
+            normalized.append(
+                {
+                    "part_number": index + 1,
+                    "file_location": video_filename,
+                    "start": float(duration_info.get("start", 0.0)),
+                    "end": float(duration_info.get("end", 0.0)),
+                }
+            )
+        return normalized
     
     #This method takes in the json object and creates mapping for video
     def read_video_config(self):
