@@ -1054,6 +1054,27 @@ def _probe_duration_seconds(file_location: str) -> float:
         raise HTTPException(status_code=400, detail="Invalid media duration") from exc
 
 
+def _resolve_existing_media_path(raw_path: str) -> Path:
+    candidate = Path(raw_path)
+    candidates: List[Path] = []
+    if candidate.is_absolute():
+        candidates.append(candidate)
+    else:
+        candidates.extend(
+            [
+                Path.cwd() / candidate,
+                REPO_ROOT / candidate,
+                (REPO_ROOT / "backend") / candidate,
+            ]
+        )
+
+    for path in candidates:
+        if path.exists():
+            return path.resolve()
+
+    return candidate if candidate.is_absolute() else (REPO_ROOT / candidate)
+
+
 def _validate_times(start_time: str, end_time: str, duration_seconds: float) -> None:
     start_seconds = _parse_hms(start_time)
     end_seconds = _parse_hms(end_time)
@@ -1371,6 +1392,32 @@ def get_video(video_id: str) -> Dict[str, Any]:
     if doc is None:
         raise HTTPException(status_code=404, detail="video not found")
     return _serialize(doc)
+
+
+@app.get("/videos/{video_id}/download")
+def download_video(video_id: str) -> FileResponse:
+    db = get_db()
+    doc = db.videos.find_one({"video_id": video_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="video not found")
+
+    status_value = str(doc.get("status") or "").strip().lower()
+    if status_value != "completed":
+        raise HTTPException(status_code=409, detail="video is not completed yet")
+
+    output_file_location = str(doc.get("output_file_location") or "").strip()
+    if not output_file_location:
+        raise HTTPException(status_code=404, detail="output file not available")
+
+    output_path = _resolve_existing_media_path(output_file_location)
+    if not output_path.exists():
+        raise HTTPException(status_code=404, detail="output file not found")
+
+    return FileResponse(
+        path=output_path,
+        media_type="video/mp4",
+        filename=output_path.name,
+    )
 
 
 @app.patch("/videos/{video_id}", response_model=VideoSchema)

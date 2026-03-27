@@ -158,7 +158,7 @@ nvm install lts/krypton
 
 Planned features and enhancements include:
 
-* Mechanism to create custom voice by uploading a sample voice clip
+* ~~Mechanism to create custom voice by uploading a sample voice clip~~
 * Bulk video creation from a single directory or input path
 * ~~Support for **image-based posts** (static Instagram content)~~  **DONE**
 * ~~GPT-powered text generation for Instagram image posts (via API key)~~ **DONE**

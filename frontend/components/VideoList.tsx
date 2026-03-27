@@ -74,6 +74,12 @@ const sortByRecent = (items: VideoRecord[]) =>
     return bTime - aTime;
   });
 
+const fileNameFromPath = (value: string) => {
+  const normalized = value.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.at(-1) ?? value;
+};
+
 export default function VideoList() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -265,13 +271,28 @@ export default function VideoList() {
                         <span className="text-rose-200">
                           Error: {video.error_reason}
                         </span>
+                      ) : video.output_file_location &&
+                        normalizeStatus(video.status) === "completed" ? (
+                        <div className="space-y-1">
+                          <a
+                            className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                            href={`${API_BASE}/videos/${encodeURIComponent(
+                              video.video_id
+                            )}/download`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Download
+                          </a>
+                          <span
+                            className="block max-w-[220px] truncate text-soft"
+                            title={video.output_file_location}
+                          >
+                            {fileNameFromPath(video.output_file_location)}
+                          </span>
+                        </div>
                       ) : video.output_file_location ? (
-                        <span
-                          className="inline-block max-w-[220px] truncate"
-                          title={video.output_file_location}
-                        >
-                          {video.output_file_location}
-                        </span>
+                        <span className="text-soft">Processing output…</span>
                       ) : (
                         "—"
                       )}
