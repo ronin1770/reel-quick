@@ -27,6 +27,8 @@ type VideoFile = {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const MAX_UPLOAD_CONCURRENCY = 2;
+const UPLOAD_REQUEST_TIMEOUT_MS = 180000;
 
 const formatTime = (value: number) => {
   if (!Number.isFinite(value)) return "0:00";
@@ -146,6 +148,11 @@ export default function CreateVideoPage() {
   };
 
   const uploadFile = async (item: VideoFile) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, UPLOAD_REQUEST_TIMEOUT_MS);
+
     try {
       const formData = new FormData();
       formData.append("file", item.file);
@@ -153,6 +160,7 @@ export default function CreateVideoPage() {
       const response = await fetch(`${API_BASE}/uploads`, {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -181,7 +189,11 @@ export default function CreateVideoPage() {
       return { success: true, name: item.file.name };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to upload file.";
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Upload timed out. Try fewer files or a smaller clip."
+          : error instanceof Error
+          ? error.message
+          : "Unable to upload file.";
       setFiles((prev) =>
         prev.map((file) =>
           file.id === item.id
@@ -194,7 +206,30 @@ export default function CreateVideoPage() {
         )
       );
       return { success: false, name: item.file.name };
+    } finally {
+      window.clearTimeout(timeoutId);
     }
+  };
+
+  const uploadFilesWithLimit = async (items: VideoFile[]) => {
+    if (items.length === 0) return [];
+
+    const results: Array<{ success: boolean; name: string }> = [];
+    let currentIndex = 0;
+
+    const worker = async () => {
+      while (true) {
+        const index = currentIndex;
+        currentIndex += 1;
+        if (index >= items.length) return;
+
+        results[index] = await uploadFile(items[index]);
+      }
+    };
+
+    const workerCount = Math.min(MAX_UPLOAD_CONCURRENCY, items.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
   };
 
   const handleAddFiles = async () => {
@@ -221,8 +256,12 @@ export default function CreateVideoPage() {
     }
 
     setIsUploadingFiles(true);
-    const results = await Promise.all(nextFiles.map(uploadFile));
-    setIsUploadingFiles(false);
+    let results: Array<{ success: boolean; name: string }> = [];
+    try {
+      results = await uploadFilesWithLimit(nextFiles);
+    } finally {
+      setIsUploadingFiles(false);
+    }
 
     const failed = results.filter((result) => !result.success);
     if (failed.length > 0) {
