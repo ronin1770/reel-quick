@@ -58,6 +58,7 @@ class TextOverlayer:
                         position=overlay["position"],
                         video_width=video_width,
                         video_height=video_height,
+                        text_height=int(text_clip.h or 0),
                     )
                     text_clip = (
                         text_clip.with_start(overlay["start_time"])
@@ -266,6 +267,8 @@ class TextOverlayer:
             "stroke_color": style["stroke_color"],
             "stroke_width": style["stroke_width"],
             "method": "label",
+            # A small internal padding avoids glyph/stroke clipping.
+            "margin": (8, 6),
             "duration": overlay["duration"],
         }
 
@@ -285,18 +288,25 @@ class TextOverlayer:
             raise
 
     def _resolve_position(
-        self, position: Dict[str, Any], video_width: int, video_height: int
+        self,
+        position: Dict[str, Any],
+        video_width: int,
+        video_height: int,
+        text_height: int,
     ) -> Tuple[Any, Any]:
+        edge_padding = max(12, int(video_height * 0.04))
+        max_bottom_y = max(0, video_height - text_height - edge_padding)
+
         preset = position["preset"]
         if preset == "top":
-            return "center", int(video_height * 0.10)
+            return "center", edge_padding
         if preset == "center":
             return "center", "center"
         if preset == "bottom":
-            return "center", int(video_height * 0.85)
+            return "center", max_bottom_y
         if preset == "custom":
             return float(position["x"]), float(position["y"])
-        return "center", int(video_height * 0.85)
+        return "center", max_bottom_y
 
     def _default_output_path(self, input_path: Path) -> Path:
         suffix = input_path.suffix or ".mp4"

@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from backend.objects.text_overlayer import TextOverlayer
 
 VIDEO_ID = "e397375225c949378357ac447fbeb096"
