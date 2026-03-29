@@ -11,6 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from backend.db import get_db, init_db
+from backend.models.video_text import VIDEO_OVERLAY_TEXT_COLLECTION, VideoTextModel
 from backend.objects.text_overlayer import TextOverlayer
 
 VIDEO_ID = "e397375225c949378357ac447fbeb096"
@@ -50,7 +52,28 @@ def build_overlays() -> List[Dict[str, Any]]:
     ]
 
 
+def upsert_overlay_result(result_payload: Dict[str, Any]) -> Dict[str, Any]:
+    model = VideoTextModel.from_response(result_payload)
+    db = get_db()
+    update_result = db[VIDEO_OVERLAY_TEXT_COLLECTION].update_one(
+        {"video_id": model.video_id},
+        model.to_upsert_update(),
+        upsert=True,
+    )
+    return {
+        "matched_count": int(update_result.matched_count),
+        "modified_count": int(update_result.modified_count),
+        "upserted_id": (
+            str(update_result.upserted_id)
+            if update_result.upserted_id is not None
+            else None
+        ),
+    }
+
+
 def main() -> int:
+    init_db()
+
     overlays = build_overlays()
     overlayer = TextOverlayer()
     result = overlayer.apply_text_overlays(
@@ -59,6 +82,9 @@ def main() -> int:
         overlays=overlays,
         output_video_path=OUTPUT_VIDEO_PATH,
     )
+
+    db_status = upsert_overlay_result(result)
+    result["db_upsert"] = db_status
 
     print(json.dumps(result, indent=2))
     return 0 if result.get("status") == "success" else 1

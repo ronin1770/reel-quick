@@ -88,15 +88,10 @@ class TextOverlayer:
                 write_kwargs: Dict[str, Any] = {
                     "filename": str(resolved_output_path),
                     "codec": "libx264",
+                    "audio": False,
                     "fps": base_clip.fps or 30,
                     "threads": 1,
                 }
-
-                if base_clip.audio is not None:
-                    write_kwargs["audio"] = True
-                    write_kwargs["audio_codec"] = "aac"
-                else:
-                    write_kwargs["audio"] = False
 
                 composite_clip.write_videofile(**write_kwargs)
 
@@ -129,7 +124,7 @@ class TextOverlayer:
                 output_video_path=str(resolved_output_path),
                 status="failed",
                 message="Video processing failed",
-                overlays=[],
+                overlays=None,
                 exception=str(exc),
             )
 
@@ -407,7 +402,7 @@ class TextOverlayer:
         output_video_path: str,
         status: str,
         message: str,
-        overlays: List[Dict[str, Any]],
+        overlays: Optional[List[Dict[str, Any]]] = None,
         exception: Optional[str] = None,
     ) -> Dict[str, Any]:
         response: Dict[str, Any] = {
@@ -416,12 +411,14 @@ class TextOverlayer:
             "output_video_path": output_video_path,
             "status": status,
             "message": message,
-            "video_overlay_config": {
+        }
+
+        if overlays is not None:
+            response["video_overlay_config"] = {
                 "has_text_overlays": len(overlays) > 0,
                 "total_overlays": len(overlays),
                 "overlays": overlays,
-            },
-        }
+            }
 
         if exception is not None:
             response["exception"] = exception
