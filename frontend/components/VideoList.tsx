@@ -233,6 +233,7 @@ export default function VideoList() {
                   <th className="py-3 pr-6">Size</th>
                   <th className="py-3 pr-6">Updated</th>
                   <th className="py-3 pr-6">Output / Error</th>
+                  <th className="py-3 pr-6">Text Overlay</th>
                   <th className="py-3">Delete</th>
                 </tr>
               </thead>
@@ -296,6 +297,16 @@ export default function VideoList() {
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td className="py-4 pr-6 align-top text-xs">
+                      <Link
+                        className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                        href={`/create-text-overlay/${encodeURIComponent(
+                          video.video_id
+                        )}`}
+                      >
+                        Create
+                      </Link>
                     </td>
                     <td className="py-4 align-top text-xs">
                       <button
