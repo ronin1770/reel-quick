@@ -233,6 +233,11 @@ class VideoTextUpsert(BaseModel):
     exception: Optional[str] = None
 
 
+class VideoTextOverlayItemsUpsert(BaseModel):
+    overlays: List[VideoTextOverlayItemSchema] = Field(default_factory=list)
+    output_video_path: str = ""
+
+
 def _overlay_config_from_doc(doc: Dict[str, Any]) -> VideoTextOverlayConfig:
     overlays: List[VideoTextOverlayItem] = []
     for overlay_doc in doc.get("overlays", []) or []:

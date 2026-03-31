@@ -38,6 +38,7 @@ def init_db() -> Database:
         "videos",
         "video_parts",
         "video_overlay_text",
+        "text_overlay_jobs",
         "raw_posts_data",
         "voice_clone_job",
         "sound_design_prompt",
@@ -48,6 +49,7 @@ def init_db() -> Database:
 
     db.videos.create_index("video_id", unique=True)
     db.video_overlay_text.create_index("video_id", unique=True)
+    db.text_overlay_jobs.create_index("video_id", unique=True)
     db.raw_posts_data.create_index("code", unique=True)
     db.voice_clone_job.create_index("job_id", unique=True)
     db.sound_design_prompt.create_index("sound_design_id", unique=True)

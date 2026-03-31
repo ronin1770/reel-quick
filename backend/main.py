@@ -54,6 +54,12 @@ from models.sound_design_prompt import (
     SoundDesignPromptStatus,
 )
 from models.custom_voices import CUSTOM_VOICES_COLLECTION
+from models.text_overlay_jobs import (
+    TEXT_OVERLAY_JOB_COLLECTION,
+    TextOverlayEnqueueRequest,
+    TextOverlayEnqueueResponse,
+    TextOverlayJobModel,
+)
 from models.video_model import VideoCreate, VideoSchema, VideoUpdate
 from models.voice_job_status import VOICE_CLONE_JOB_COLLECTION, VoiceCloneJobModel
 from models.video_part_model import (
@@ -61,10 +67,17 @@ from models.video_part_model import (
     VideoPartSchema,
     VideoPartUpdate,
 )
+from models.video_text import (
+    VIDEO_OVERLAY_TEXT_COLLECTION,
+    VideoTextModel,
+    VideoTextOverlayItemsUpsert,
+    VideoTextSchema,
+)
 from workers.queue_names import (
     AI_QUEUE_NAME,
     POST_QUEUE_NAME,
     SOUND_DESIGNER_QUEUE_NAME,
+    TEXT_OVERLAY_QUEUE_NAME,
     VIDEO_QUEUE_NAME,
     VOICE_CLONE_QUEUE_NAME,
     queue_health_key,
@@ -144,6 +157,10 @@ CONTROL_PANEL_WORKERS: Dict[str, Dict[str, str]] = {
     "sound_designer_worker": {
         "name": "Sound Designer Worker",
         "settings_path": "backend.workers.sound_designer_worker.WorkerSettings",
+    },
+    "text_overlay_worker": {
+        "name": "Text Overlay Worker",
+        "settings_path": "backend.workers.text_overlay_worker.WorkerSettings",
     },
 }
 
@@ -1086,6 +1103,64 @@ def _validate_times(start_time: str, end_time: str, duration_seconds: float) -> 
         raise HTTPException(status_code=400, detail="end_time must be > start_time")
 
 
+def _require_video_for_text_overlay(db: Any, video_id: str) -> Dict[str, Any]:
+    video_doc = db.videos.find_one({"video_id": video_id})
+    if video_doc is None:
+        raise HTTPException(status_code=404, detail="video not found")
+    return video_doc
+
+
+def _require_completed_video_for_text_overlay(db: Any, video_id: str) -> Dict[str, Any]:
+    video_doc = _require_video_for_text_overlay(db, video_id)
+
+    status_value = str(video_doc.get("status") or "").strip().lower()
+    if status_value != "completed":
+        raise HTTPException(status_code=409, detail="video is not completed yet")
+
+    output_file_location = str(video_doc.get("output_file_location") or "").strip()
+    if not output_file_location:
+        raise HTTPException(status_code=404, detail="output file not available")
+
+    output_path = _resolve_existing_media_path(output_file_location)
+    if not output_path.exists():
+        raise HTTPException(status_code=404, detail="output file not found")
+
+    return video_doc
+
+
+def _normalize_overlay_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    start_time = float(item.get("start_time", 0.0))
+    end_time = float(item.get("end_time", 0.0))
+    duration = end_time - start_time
+
+    normalized = dict(item)
+    normalized["start_time"] = start_time
+    normalized["end_time"] = end_time
+    normalized["duration"] = duration
+    return normalized
+
+
+def _merge_overlays_by_id(
+    existing_overlays: List[Dict[str, Any]],
+    incoming_overlays: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for item in existing_overlays:
+        overlay_id = str(item.get("overlay_id") or "").strip()
+        if not overlay_id:
+            continue
+        merged[overlay_id] = _normalize_overlay_item(item)
+
+    for item in incoming_overlays:
+        overlay_id = str(item.get("overlay_id") or "").strip()
+        if not overlay_id:
+            continue
+        merged[overlay_id] = _normalize_overlay_item(item)
+
+    return list(merged.values())
+
+
 async def _require_worker_health(
     redis: Any, queue_name: str, worker_label: str
 ) -> None:
@@ -1392,6 +1467,227 @@ def get_video(video_id: str) -> Dict[str, Any]:
     if doc is None:
         raise HTTPException(status_code=404, detail="video not found")
     return _serialize(doc)
+
+
+@app.post("/videos/{video_id}/text-overlays", response_model=VideoTextSchema)
+def add_video_text_overlays(
+    video_id: str, payload: VideoTextOverlayItemsUpsert
+) -> Dict[str, Any]:
+    db = get_db()
+    video_doc = _require_video_for_text_overlay(db, video_id)
+
+    incoming_overlays = [item.dict() for item in payload.overlays]
+    if not incoming_overlays:
+        raise HTTPException(status_code=400, detail="at least one overlay is required")
+
+    existing_doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one({"video_id": video_id})
+    existing_overlays: List[Dict[str, Any]] = []
+    if existing_doc is not None:
+        config = existing_doc.get("video_overlay_config") or {}
+        existing_overlays = config.get("overlays") or []
+        if not isinstance(existing_overlays, list):
+            existing_overlays = []
+
+    merged_overlays = _merge_overlays_by_id(existing_overlays, incoming_overlays)
+    if not merged_overlays:
+        raise HTTPException(status_code=400, detail="at least one valid overlay is required")
+
+    output_video_path = payload.output_video_path.strip()
+    if not output_video_path and existing_doc is not None:
+        output_video_path = str(existing_doc.get("output_video_path") or "").strip()
+
+    input_video_path = str(video_doc.get("output_file_location") or "").strip()
+    if not input_video_path and existing_doc is not None:
+        input_video_path = str(existing_doc.get("input_video_path") or "").strip()
+
+    result_payload: Dict[str, Any] = {
+        "video_id": video_id,
+        "input_video_path": input_video_path,
+        "output_video_path": output_video_path,
+        "status": "pending",
+        "message": "Text overlays saved. Ready to enqueue.",
+        "video_overlay_config": {
+            "has_text_overlays": len(merged_overlays) > 0,
+            "total_overlays": len(merged_overlays),
+            "overlays": merged_overlays,
+        },
+        "exception": None,
+    }
+
+    model = VideoTextModel.from_response(result_payload)
+    db[VIDEO_OVERLAY_TEXT_COLLECTION].update_one(
+        {"video_id": model.video_id},
+        model.to_upsert_update(),
+        upsert=True,
+    )
+
+    saved_doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one({"video_id": video_id})
+    if saved_doc is None:
+        raise HTTPException(status_code=500, detail="failed to save text overlays")
+
+    return _serialize(saved_doc)
+
+
+@app.post(
+    "/enqueue/text-overlay",
+    response_model=TextOverlayEnqueueResponse,
+)
+async def enqueue_text_overlay(payload: TextOverlayEnqueueRequest) -> JSONResponse:
+    db = get_db()
+    video_id = payload.video_id.strip()
+    _require_completed_video_for_text_overlay(db, video_id)
+
+    text_doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one({"video_id": video_id})
+    if text_doc is None:
+        raise HTTPException(status_code=404, detail="text overlays not found for video")
+
+    config = text_doc.get("video_overlay_config") or {}
+    overlays = config.get("overlays") or []
+    if not isinstance(overlays, list) or len(overlays) == 0:
+        raise HTTPException(status_code=400, detail="at least one overlay is required")
+
+    declared_total = int(config.get("total_overlays", len(overlays)))
+    if declared_total != len(overlays):
+        raise HTTPException(status_code=409, detail="overlay list is incomplete")
+
+    existing_job = db[TEXT_OVERLAY_JOB_COLLECTION].find_one(
+        {"video_id": video_id},
+        {"status": 1},
+    )
+    if existing_job is not None:
+        status_value = str(existing_job.get("status") or "").strip().lower()
+        if status_value in {"pending", "progressing"}:
+            raise HTTPException(
+                status_code=409,
+                detail="text overlay job already in progress",
+            )
+
+    now = datetime.utcnow()
+    job_doc = TextOverlayJobModel(
+        video_id=video_id,
+        status="pending",
+        status_message="job queued",
+        arq_job_id=None,
+        created_at=now,
+        updated_at=now,
+    ).to_bson()
+
+    db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+        {"video_id": video_id},
+        {
+            "$set": {
+                "status": job_doc["status"],
+                "status_message": job_doc["status_message"],
+                "arq_job_id": None,
+                "updated_at": now,
+            },
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True,
+    )
+
+    try:
+        redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+    except Exception as exc:
+        db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+            {"video_id": video_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "status_message": "redis unavailable",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        logger.error("Unable to connect to Redis: %s", exc)
+        raise HTTPException(status_code=503, detail="redis unavailable") from exc
+
+    try:
+        await _require_worker_health(
+            redis,
+            TEXT_OVERLAY_QUEUE_NAME,
+            "text overlay",
+        )
+        job = await redis.enqueue_job(
+            "process_text_overlay_job",
+            video_id,
+            _queue_name=TEXT_OVERLAY_QUEUE_NAME,
+        )
+    except HTTPException:
+        db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+            {"video_id": video_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "status_message": "text overlay worker unavailable",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        raise
+    except Exception as exc:
+        db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+            {"video_id": video_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "status_message": "enqueue failed",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        logger.error("Failed to enqueue text overlay job: %s", exc)
+        raise HTTPException(status_code=500, detail="enqueue failed") from exc
+    finally:
+        await redis.close()
+
+    if job is None:
+        db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+            {"video_id": video_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "status_message": "enqueue failed",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        raise HTTPException(status_code=500, detail="enqueue failed")
+
+    now = datetime.utcnow()
+    db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
+        {"video_id": video_id},
+        {
+            "$set": {
+                "status": "pending",
+                "status_message": "job queued",
+                "arq_job_id": job.job_id,
+                "updated_at": now,
+            }
+        },
+    )
+    db[VIDEO_OVERLAY_TEXT_COLLECTION].update_one(
+        {"video_id": video_id},
+        {
+            "$set": {
+                "status": "pending",
+                "message": "Text overlay job queued",
+                "exception": None,
+                "modification_time": now,
+            }
+        },
+    )
+
+    logger.info("Enqueued text overlay for video %s as job %s", video_id, job.job_id)
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "message": "text overlay job queued",
+            "video_id": video_id,
+            "job_id": job.job_id,
+            "status": "pending",
+        },
+    )
 
 
 @app.get("/videos/{video_id}/download")
