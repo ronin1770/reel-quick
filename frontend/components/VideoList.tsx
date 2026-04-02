@@ -21,6 +21,8 @@ type VideoRecord = {
 type TextOverlayJobRecord = {
   video_id: string;
   status?: string;
+  output_video_path?: string | null;
+  overlay_result_status?: string;
 };
 
 const API_BASE =
@@ -87,8 +89,15 @@ const fileNameFromPath = (value: string) => {
 
 export default function VideoList() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
-  const [textOverlayStatusByVideoId, setTextOverlayStatusByVideoId] = useState<
-    Record<string, string>
+  const [textOverlayByVideoId, setTextOverlayByVideoId] = useState<
+    Record<
+      string,
+      {
+        status: string;
+        outputVideoPath: string;
+        overlayResultStatus: string;
+      }
+    >
   >({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,20 +121,31 @@ export default function VideoList() {
         });
         if (jobsResponse.ok) {
           const jobs = (await jobsResponse.json()) as TextOverlayJobRecord[];
-          const byVideoId: Record<string, string> = {};
+          const byVideoId: Record<
+            string,
+            {
+              status: string;
+              outputVideoPath: string;
+              overlayResultStatus: string;
+            }
+          > = {};
           if (Array.isArray(jobs)) {
             jobs.forEach((job) => {
               const id = String(job.video_id || "").trim();
               if (!id || byVideoId[id]) return;
-              byVideoId[id] = String(job.status || "").toLowerCase();
+              byVideoId[id] = {
+                status: String(job.status || "").toLowerCase(),
+                outputVideoPath: String(job.output_video_path || "").trim(),
+                overlayResultStatus: String(job.overlay_result_status || "").toLowerCase(),
+              };
             });
           }
-          setTextOverlayStatusByVideoId(byVideoId);
+          setTextOverlayByVideoId(byVideoId);
         } else {
-          setTextOverlayStatusByVideoId({});
+          setTextOverlayByVideoId({});
         }
       } catch {
-        setTextOverlayStatusByVideoId({});
+        setTextOverlayByVideoId({});
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load videos.");
@@ -268,9 +288,22 @@ export default function VideoList() {
               </thead>
               <tbody>
                 {sortByRecent(videos).map((video) => {
-                  const overlayStatus =
-                    textOverlayStatusByVideoId[video.video_id] ?? "";
-                  const isOverlayDone = overlayStatus === "finished";
+                  const overlayMeta = textOverlayByVideoId[video.video_id];
+                  const isOverlayDone = overlayMeta?.status === "finished";
+                  const hasOverlayOutput =
+                    Boolean(overlayMeta?.outputVideoPath) &&
+                    overlayMeta?.overlayResultStatus === "success";
+                  const downloadPath = isOverlayDone && hasOverlayOutput
+                    ? `${API_BASE}/videos/${encodeURIComponent(
+                        video.video_id
+                      )}/text-overlays/download`
+                    : `${API_BASE}/videos/${encodeURIComponent(
+                        video.video_id
+                      )}/download`;
+                  const shownFilePath =
+                    isOverlayDone && hasOverlayOutput
+                      ? overlayMeta.outputVideoPath
+                      : String(video.output_file_location || "").trim();
 
                   return (
                     <tr
@@ -303,14 +336,12 @@ export default function VideoList() {
                           <span className="text-rose-200">
                             Error: {video.error_reason}
                           </span>
-                        ) : video.output_file_location &&
-                          normalizeStatus(video.status) === "completed" ? (
+                        ) : normalizeStatus(video.status) === "completed" &&
+                          shownFilePath ? (
                           <div className="space-y-1">
                             <a
                               className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
-                              href={`${API_BASE}/videos/${encodeURIComponent(
-                                video.video_id
-                              )}/download`}
+                              href={downloadPath}
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -318,9 +349,9 @@ export default function VideoList() {
                             </a>
                             <span
                               className="block max-w-[220px] truncate text-soft"
-                              title={video.output_file_location}
+                              title={shownFilePath}
                             >
-                              {fileNameFromPath(video.output_file_location)}
+                              {fileNameFromPath(shownFilePath)}
                             </span>
                           </div>
                         ) : video.output_file_location ? (

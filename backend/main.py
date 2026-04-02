@@ -1140,27 +1140,6 @@ def _normalize_overlay_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def _merge_overlays_by_id(
-    existing_overlays: List[Dict[str, Any]],
-    incoming_overlays: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    merged: Dict[str, Dict[str, Any]] = {}
-
-    for item in existing_overlays:
-        overlay_id = str(item.get("overlay_id") or "").strip()
-        if not overlay_id:
-            continue
-        merged[overlay_id] = _normalize_overlay_item(item)
-
-    for item in incoming_overlays:
-        overlay_id = str(item.get("overlay_id") or "").strip()
-        if not overlay_id:
-            continue
-        merged[overlay_id] = _normalize_overlay_item(item)
-
-    return list(merged.values())
-
-
 async def _require_worker_health(
     redis: Any, queue_name: str, worker_label: str
 ) -> None:
@@ -1481,16 +1460,7 @@ def add_video_text_overlays(
         raise HTTPException(status_code=400, detail="at least one overlay is required")
 
     existing_doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one({"video_id": video_id})
-    existing_overlays: List[Dict[str, Any]] = []
-    if existing_doc is not None:
-        config = existing_doc.get("video_overlay_config") or {}
-        existing_overlays = config.get("overlays") or []
-        if not isinstance(existing_overlays, list):
-            existing_overlays = []
-
-    merged_overlays = _merge_overlays_by_id(existing_overlays, incoming_overlays)
-    if not merged_overlays:
-        raise HTTPException(status_code=400, detail="at least one valid overlay is required")
+    replaced_overlays = [_normalize_overlay_item(item) for item in incoming_overlays]
 
     output_video_path = payload.output_video_path.strip()
     if not output_video_path and existing_doc is not None:
@@ -1507,9 +1477,9 @@ def add_video_text_overlays(
         "status": "pending",
         "message": "Text overlays saved. Ready to enqueue.",
         "video_overlay_config": {
-            "has_text_overlays": len(merged_overlays) > 0,
-            "total_overlays": len(merged_overlays),
-            "overlays": merged_overlays,
+            "has_text_overlays": len(replaced_overlays) > 0,
+            "total_overlays": len(replaced_overlays),
+            "overlays": replaced_overlays,
         },
         "exception": None,
     }
@@ -1676,12 +1646,79 @@ async def enqueue_text_overlay(payload: TextOverlayEnqueueRequest) -> JSONRespon
 @app.get("/text-overlay-jobs")
 def list_text_overlay_jobs() -> List[Dict[str, Any]]:
     db = get_db()
-    cursor = (
+    docs = list(
         db[TEXT_OVERLAY_JOB_COLLECTION]
         .find({}, {"_id": 0})
         .sort("updated_at", -1)
     )
-    return [dict(doc) for doc in cursor]
+    job_docs = [dict(doc) for doc in docs]
+
+    video_ids = [
+        str(doc.get("video_id") or "").strip()
+        for doc in job_docs
+        if str(doc.get("video_id") or "").strip()
+    ]
+    if not video_ids:
+        return job_docs
+
+    overlay_cursor = db[VIDEO_OVERLAY_TEXT_COLLECTION].find(
+        {"video_id": {"$in": video_ids}},
+        {"_id": 0, "video_id": 1, "output_video_path": 1, "status": 1},
+    )
+    overlay_map: Dict[str, Dict[str, Any]] = {}
+    for overlay_doc in overlay_cursor:
+        video_id = str(overlay_doc.get("video_id") or "").strip()
+        if not video_id:
+            continue
+        overlay_map[video_id] = dict(overlay_doc)
+
+    for doc in job_docs:
+        video_id = str(doc.get("video_id") or "").strip()
+        overlay_doc = overlay_map.get(video_id, {})
+        doc["output_video_path"] = str(overlay_doc.get("output_video_path") or "").strip()
+        doc["overlay_result_status"] = str(overlay_doc.get("status") or "").strip().lower()
+
+    return job_docs
+
+
+@app.get("/videos/{video_id}/text-overlays/download")
+def download_text_overlay_video(video_id: str) -> FileResponse:
+    db = get_db()
+    job_doc = db[TEXT_OVERLAY_JOB_COLLECTION].find_one(
+        {"video_id": video_id},
+        {"_id": 0, "status": 1},
+    )
+    if job_doc is None:
+        raise HTTPException(status_code=404, detail="text overlay job not found")
+
+    job_status = str(job_doc.get("status") or "").strip().lower()
+    if job_status != "finished":
+        raise HTTPException(status_code=409, detail="text overlay is not finished yet")
+
+    overlay_doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one(
+        {"video_id": video_id},
+        {"_id": 0, "status": 1, "output_video_path": 1},
+    )
+    if overlay_doc is None:
+        raise HTTPException(status_code=404, detail="text overlay result not found")
+
+    overlay_status = str(overlay_doc.get("status") or "").strip().lower()
+    if overlay_status != "success":
+        raise HTTPException(status_code=409, detail="text overlay result is not available")
+
+    output_video_path = str(overlay_doc.get("output_video_path") or "").strip()
+    if not output_video_path:
+        raise HTTPException(status_code=404, detail="text overlay output file not available")
+
+    output_path = _resolve_existing_media_path(output_video_path)
+    if not output_path.exists():
+        raise HTTPException(status_code=404, detail="text overlay output file not found")
+
+    return FileResponse(
+        path=output_path,
+        media_type="video/mp4",
+        filename=output_path.name,
+    )
 
 
 @app.get("/videos/{video_id}/download")
