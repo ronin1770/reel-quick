@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type CreateTextOverlayPageProps = {
@@ -24,6 +25,27 @@ type TextOverlay = {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+const getErrorMessage = async (response: Response): Promise<string | null> => {
+  try {
+    const payload = (await response.json()) as {
+      detail?: string | Array<{ msg?: string }>;
+    };
+    const { detail } = payload;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail.trim();
+    }
+    if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0];
+      if (first && typeof first.msg === "string" && first.msg.trim()) {
+        return first.msg.trim();
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 const parseDurationToSeconds = (value?: string | null): number => {
   if (!value) return 0;
@@ -66,6 +88,7 @@ const fileNameFromPath = (value: string) => {
 export default function CreateTextOverlayPage({
   videoId,
 }: CreateTextOverlayPageProps) {
+  const router = useRouter();
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +99,7 @@ export default function CreateTextOverlayPage({
   const [draftStart, setDraftStart] = useState(0);
   const [draftEnd, setDraftEnd] = useState(1);
   const [uiNote, setUiNote] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchVideo = useCallback(async () => {
     setIsLoading(true);
@@ -171,8 +195,62 @@ export default function CreateTextOverlayPage({
     );
   };
 
-  const onDoneClick = () => {
-    setUiNote("Interface only for now. Backend processing will be wired next.");
+  const onDoneClick = async () => {
+    if (isSubmitting) return;
+
+    setUiNote(null);
+    setIsSubmitting(true);
+
+    try {
+      const savePayload = {
+        overlays: overlays.map((overlay) => ({
+          overlay_id: overlay.id,
+          text: overlay.text,
+          start_time: overlay.startSeconds,
+          end_time: overlay.endSeconds,
+          duration: overlay.endSeconds - overlay.startSeconds,
+        })),
+      };
+
+      const saveResponse = await fetch(
+        `${API_BASE}/videos/${encodeURIComponent(videoId)}/text-overlays`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(savePayload),
+        }
+      );
+
+      if (!saveResponse.ok) {
+        const detail = await getErrorMessage(saveResponse);
+        throw new Error(
+          detail ?? `Unable to save text overlays (${saveResponse.status})`
+        );
+      }
+
+      const enqueueResponse = await fetch(`${API_BASE}/enqueue/text-overlay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_id: videoId }),
+      });
+
+      if (!enqueueResponse.ok) {
+        const detail = await getErrorMessage(enqueueResponse);
+        throw new Error(
+          detail ?? `Unable to enqueue text overlay job (${enqueueResponse.status})`
+        );
+      }
+
+      router.push("/videos");
+    } catch (err) {
+      setUiNote(
+        err instanceof Error
+          ? err.message
+          : "Unable to process text overlay request."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -264,8 +342,9 @@ export default function CreateTextOverlayPage({
                   className="neon-button neon-button-primary w-full"
                   type="button"
                   onClick={onDoneClick}
+                  disabled={isSubmitting || overlays.length === 0}
                 >
-                  Done (Process Video)
+                  {isSubmitting ? "Processing..." : "Done (Process Video)"}
                 </button>
               </div>
 
