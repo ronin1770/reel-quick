@@ -29,16 +29,32 @@ const API_BASE =
 const getErrorMessage = async (response: Response): Promise<string | null> => {
   try {
     const payload = (await response.json()) as {
-      detail?: string | Array<{ msg?: string }>;
+      detail?:
+        | string
+        | Array<{ msg?: string; loc?: Array<string | number> }>;
     };
     const { detail } = payload;
     if (typeof detail === "string" && detail.trim()) {
       return detail.trim();
     }
     if (Array.isArray(detail) && detail.length > 0) {
-      const first = detail[0];
-      if (first && typeof first.msg === "string" && first.msg.trim()) {
-        return first.msg.trim();
+      const messages = detail
+        .map((item) => {
+          if (!item || typeof item.msg !== "string" || !item.msg.trim()) {
+            return null;
+          }
+          const locPath = Array.isArray(item.loc)
+            ? item.loc
+                .map((part) => String(part))
+                .filter((part) => part && part !== "body")
+                .join(".")
+            : "";
+          return locPath ? `${locPath}: ${item.msg.trim()}` : item.msg.trim();
+        })
+        .filter((item): item is string => Boolean(item));
+
+      if (messages.length > 0) {
+        return messages.join(" | ");
       }
     }
   } catch {
