@@ -1673,6 +1673,17 @@ async def enqueue_text_overlay(payload: TextOverlayEnqueueRequest) -> JSONRespon
     )
 
 
+@app.get("/text-overlay-jobs")
+def list_text_overlay_jobs() -> List[Dict[str, Any]]:
+    db = get_db()
+    cursor = (
+        db[TEXT_OVERLAY_JOB_COLLECTION]
+        .find({}, {"_id": 0})
+        .sort("updated_at", -1)
+    )
+    return [dict(doc) for doc in cursor]
+
+
 @app.get("/videos/{video_id}/download")
 def download_video(video_id: str) -> FileResponse:
     db = get_db()

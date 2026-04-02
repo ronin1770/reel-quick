@@ -18,6 +18,11 @@ type VideoRecord = {
   error_reason?: string | null;
 };
 
+type TextOverlayJobRecord = {
+  video_id: string;
+  status?: string;
+};
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -82,6 +87,9 @@ const fileNameFromPath = (value: string) => {
 
 export default function VideoList() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
+  const [textOverlayStatusByVideoId, setTextOverlayStatusByVideoId] = useState<
+    Record<string, string>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
@@ -97,6 +105,28 @@ export default function VideoList() {
       }
       const data = (await response.json()) as VideoRecord[];
       setVideos(Array.isArray(data) ? data : []);
+
+      try {
+        const jobsResponse = await fetch(`${API_BASE}/text-overlay-jobs`, {
+          cache: "no-store",
+        });
+        if (jobsResponse.ok) {
+          const jobs = (await jobsResponse.json()) as TextOverlayJobRecord[];
+          const byVideoId: Record<string, string> = {};
+          if (Array.isArray(jobs)) {
+            jobs.forEach((job) => {
+              const id = String(job.video_id || "").trim();
+              if (!id || byVideoId[id]) return;
+              byVideoId[id] = String(job.status || "").toLowerCase();
+            });
+          }
+          setTextOverlayStatusByVideoId(byVideoId);
+        } else {
+          setTextOverlayStatusByVideoId({});
+        }
+      } catch {
+        setTextOverlayStatusByVideoId({});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load videos.");
     } finally {
@@ -229,7 +259,6 @@ export default function VideoList() {
                 <tr>
                   <th className="py-3 pr-6">Title</th>
                   <th className="py-3 pr-6">Status</th>
-                  <th className="py-3 pr-6">Video ID</th>
                   <th className="py-3 pr-6">Size</th>
                   <th className="py-3 pr-6">Updated</th>
                   <th className="py-3 pr-6">Output / Error</th>
@@ -238,88 +267,95 @@ export default function VideoList() {
                 </tr>
               </thead>
               <tbody>
-                {sortByRecent(videos).map((video) => (
-                  <tr
-                    key={video.video_id}
-                    className="border-b border-white/10 last:border-b-0"
-                  >
-                    <td className="py-4 pr-6 align-top">
-                      <p className="text-base font-semibold">
-                        {video.video_title || "Untitled video"}
-                      </p>
-                      {video.video_introduction && (
-                        <p className="mt-1 max-w-[260px] text-xs text-muted">
-                          {video.video_introduction}
+                {sortByRecent(videos).map((video) => {
+                  const overlayStatus =
+                    textOverlayStatusByVideoId[video.video_id] ?? "";
+                  const isOverlayDone = overlayStatus === "finished";
+
+                  return (
+                    <tr
+                      key={video.video_id}
+                      className="border-b border-white/10 last:border-b-0"
+                    >
+                      <td className="py-4 pr-6 align-top">
+                        <p className="text-base font-semibold">
+                          {video.video_title || "Untitled video"}
                         </p>
-                      )}
-                    </td>
-                    <td className="py-4 pr-6 align-top">
-                      <StatusPill status={video.status} />
-                    </td>
-                    <td className="py-4 pr-6 align-top text-xs text-soft">
-                      <span className="font-mono">{video.video_id}</span>
-                    </td>
-                    <td className="py-4 pr-6 align-top text-xs text-muted">
-                      {video.video_size ? String(video.video_size) : "—"}
-                    </td>
-                    <td className="py-4 pr-6 align-top text-xs text-soft">
-                      {formatDateTime(
-                        video.modification_time ?? video.creation_time
-                      )}
-                    </td>
-                    <td className="py-4 align-top text-xs text-muted">
-                      {video.error_reason ? (
-                        <span className="text-rose-200">
-                          Error: {video.error_reason}
-                        </span>
-                      ) : video.output_file_location &&
-                        normalizeStatus(video.status) === "completed" ? (
-                        <div className="space-y-1">
-                          <a
-                            className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
-                            href={`${API_BASE}/videos/${encodeURIComponent(
-                              video.video_id
-                            )}/download`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Download
-                          </a>
-                          <span
-                            className="block max-w-[220px] truncate text-soft"
-                            title={video.output_file_location}
-                          >
-                            {fileNameFromPath(video.output_file_location)}
+                        {video.video_introduction && (
+                          <p className="mt-1 max-w-[260px] text-xs text-muted">
+                            {video.video_introduction}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-4 pr-6 align-top">
+                        <StatusPill status={video.status} />
+                      </td>
+                      <td className="py-4 pr-6 align-top text-xs text-muted">
+                        {video.video_size ? String(video.video_size) : "—"}
+                      </td>
+                      <td className="py-4 pr-6 align-top text-xs text-soft">
+                        {formatDateTime(
+                          video.modification_time ?? video.creation_time
+                        )}
+                      </td>
+                      <td className="py-4 align-top text-xs text-muted">
+                        {video.error_reason ? (
+                          <span className="text-rose-200">
+                            Error: {video.error_reason}
                           </span>
-                        </div>
-                      ) : video.output_file_location ? (
-                        <span className="text-soft">Processing output…</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-4 pr-6 align-top text-xs">
-                      <Link
-                        className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
-                        href={`/create-text-overlay/${encodeURIComponent(
-                          video.video_id
-                        )}`}
-                      >
-                        Create
-                      </Link>
-                    </td>
-                    <td className="py-4 align-top text-xs">
-                      <button
-                        className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:text-rose-200/60"
-                        type="button"
-                        onClick={() => handleDelete(video.video_id)}
-                        disabled={Boolean(deleting[video.video_id])}
-                      >
-                        {deleting[video.video_id] ? "Deleting..." : "Delete"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        ) : video.output_file_location &&
+                          normalizeStatus(video.status) === "completed" ? (
+                          <div className="space-y-1">
+                            <a
+                              className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                              href={`${API_BASE}/videos/${encodeURIComponent(
+                                video.video_id
+                              )}/download`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Download
+                            </a>
+                            <span
+                              className="block max-w-[220px] truncate text-soft"
+                              title={video.output_file_location}
+                            >
+                              {fileNameFromPath(video.output_file_location)}
+                            </span>
+                          </div>
+                        ) : video.output_file_location ? (
+                          <span className="text-soft">Processing output…</span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-4 pr-6 align-top text-xs">
+                        {isOverlayDone ? (
+                          <span className="font-semibold text-emerald-200">Done</span>
+                        ) : (
+                          <Link
+                            className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                            href={`/create-text-overlay/${encodeURIComponent(
+                              video.video_id
+                            )}`}
+                          >
+                            Create
+                          </Link>
+                        )}
+                      </td>
+                      <td className="py-4 align-top text-xs">
+                        <button
+                          className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:text-rose-200/60"
+                          type="button"
+                          onClick={() => handleDelete(video.video_id)}
+                          disabled={Boolean(deleting[video.video_id])}
+                        >
+                          {deleting[video.video_id] ? "Deleting..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
