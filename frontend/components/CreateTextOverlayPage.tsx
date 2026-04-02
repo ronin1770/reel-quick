@@ -225,6 +225,15 @@ export default function CreateTextOverlayPage({
           start_time: overlay.startSeconds,
           end_time: overlay.endSeconds,
           duration: overlay.endSeconds - overlay.startSeconds,
+          position: {
+            preset: "top",
+            x: "center",
+            y: "center",
+          },
+          style: {
+            font_size: 16,
+            font_weight: "normal",
+          },
         })),
       };
 
