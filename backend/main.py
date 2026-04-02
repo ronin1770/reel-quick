@@ -1603,28 +1603,11 @@ async def enqueue_text_overlay(payload: TextOverlayEnqueueRequest) -> JSONRespon
         raise HTTPException(status_code=503, detail="redis unavailable") from exc
 
     try:
-        await _require_worker_health(
-            redis,
-            TEXT_OVERLAY_QUEUE_NAME,
-            "text overlay",
-        )
         job = await redis.enqueue_job(
             "process_text_overlay_job",
             video_id,
             _queue_name=TEXT_OVERLAY_QUEUE_NAME,
         )
-    except HTTPException:
-        db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
-            {"video_id": video_id},
-            {
-                "$set": {
-                    "status": "error",
-                    "status_message": "text overlay worker unavailable",
-                    "updated_at": datetime.utcnow(),
-                }
-            },
-        )
-        raise
     except Exception as exc:
         db[TEXT_OVERLAY_JOB_COLLECTION].update_one(
             {"video_id": video_id},
