@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SyntheticEvent,
+} from "react";
 
 type CreateTextOverlayPageProps = {
   videoId: string;
@@ -30,9 +38,9 @@ type TextOverlay = {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const MIN_FONT_SIZE = 14;
-const MAX_FONT_SIZE = 40;
-const DEFAULT_FONT_SIZE = 40;
+const MIN_FONT_SIZE = 40;
+const MAX_FONT_SIZE = 200;
+const DEFAULT_FONT_SIZE = 48;
 const DEFAULT_TEXT_COLOR = "#000000";
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
@@ -123,6 +131,7 @@ export default function CreateTextOverlayPage({
   videoId,
 }: CreateTextOverlayPageProps) {
   const router = useRouter();
+  const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +147,14 @@ export default function CreateTextOverlayPage({
     useState(DEFAULT_TEXT_COLOR);
   const [draftPositionPreset, setDraftPositionPreset] =
     useState<PositionPreset>("top");
+  const [sourceVideoSize, setSourceVideoSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [previewFrameSize, setPreviewFrameSize] = useState({
+    width: 0,
+    height: 0,
+  });
   const [uiNote, setUiNote] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -242,6 +259,50 @@ export default function CreateTextOverlayPage({
     setDraftTextColorInput(draftTextColor);
   };
 
+  const onVideoMetadataLoaded = (event: SyntheticEvent<HTMLVideoElement>) => {
+    const videoElement = event.currentTarget;
+    const { videoWidth, videoHeight } = videoElement;
+
+    if (videoWidth <= 0 || videoHeight <= 0) return;
+    setSourceVideoSize((previous) => {
+      if (previous.width === videoWidth && previous.height === videoHeight) {
+        return previous;
+      }
+      return {
+        width: videoWidth,
+        height: videoHeight,
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    const node = previewFrameRef.current;
+    if (!node) return;
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setPreviewFrameSize({
+        width: rect.width,
+        height: rect.height,
+      });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => {
+        updateSize();
+      });
+      observer.observe(node);
+
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [isDialogOpen]);
+
   const canCreateDraft =
     draftText.trim().length > 0 &&
     draftEnd > draftStart &&
@@ -250,12 +311,34 @@ export default function CreateTextOverlayPage({
     draftFontSize <= MAX_FONT_SIZE &&
     normalizeHexColor(draftTextColor) !== null;
 
-  const previewAlignmentClass =
+  const previewAspectRatio =
+    sourceVideoSize.width > 0 && sourceVideoSize.height > 0
+      ? `${sourceVideoSize.width} / ${sourceVideoSize.height}`
+      : "16 / 9";
+
+  const sourceWidth = sourceVideoSize.width > 0 ? sourceVideoSize.width : 1;
+  const sourceHeight = sourceVideoSize.height > 0 ? sourceVideoSize.height : 1;
+  const widthScale =
+    previewFrameSize.width > 0 ? previewFrameSize.width / sourceWidth : 1;
+  const heightScale =
+    previewFrameSize.height > 0 ? previewFrameSize.height / sourceHeight : 1;
+  const previewScale = Math.min(widthScale, heightScale);
+  const previewFontSize = Math.max(
+    1,
+    Math.round(draftFontSize * (Number.isFinite(previewScale) ? previewScale : 1))
+  );
+
+  const sourceEdgePadding = Math.max(40, Math.floor(sourceHeight * 0.06));
+  const previewEdgePadding = Math.max(
+    8,
+    Math.round(sourceEdgePadding * heightScale)
+  );
+  const previewOverlayStyle: CSSProperties =
     draftPositionPreset === "top"
-      ? "items-start pt-6"
-      : draftPositionPreset === "center"
-        ? "items-center"
-        : "items-end pb-6";
+      ? { alignItems: "flex-start", paddingTop: `${previewEdgePadding}px` }
+      : draftPositionPreset === "bottom"
+        ? { alignItems: "flex-end", paddingBottom: `${previewEdgePadding}px` }
+        : { alignItems: "center" };
 
   const addOverlay = () => {
     if (!canCreateDraft) return;
@@ -411,6 +494,7 @@ export default function CreateTextOverlayPage({
                     className="aspect-video w-full rounded-xl border border-white/10 bg-black/50"
                     controls
                     src={videoDownloadUrl}
+                    onLoadedMetadata={onVideoMetadataLoaded}
                   />
                 ) : (
                   <div className="flex aspect-video items-center justify-center rounded-xl border border-white/15 bg-black/35 px-3 text-center text-sm text-soft">
@@ -647,28 +731,34 @@ export default function CreateTextOverlayPage({
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-soft">
                   Live Preview
                 </p>
-                <div className="relative mt-3 overflow-hidden rounded-xl border border-white/15 bg-black/60">
+                <div
+                  ref={previewFrameRef}
+                  className="relative mt-3 overflow-hidden rounded-xl border border-white/15 bg-black/60"
+                  style={{ aspectRatio: previewAspectRatio }}
+                >
                   {videoDownloadUrl ? (
                     <video
-                      className="aspect-video w-full"
+                      className="h-full w-full object-contain"
                       src={videoDownloadUrl}
                       muted
                       playsInline
                       loop
+                      onLoadedMetadata={onVideoMetadataLoaded}
                     />
                   ) : (
-                    <div className="flex aspect-video items-center justify-center px-3 text-center text-sm text-soft">
+                    <div className="flex h-full w-full items-center justify-center px-3 text-center text-sm text-soft">
                       Video preview is unavailable for this item.
                     </div>
                   )}
                   <div
-                    className={`pointer-events-none absolute inset-0 flex justify-center ${previewAlignmentClass}`}
+                    className="pointer-events-none absolute inset-0 flex justify-center"
+                    style={previewOverlayStyle}
                   >
                     <p
                       className="max-w-[90%] break-words px-3 text-center font-semibold leading-tight"
                       style={{
                         color: draftTextColor,
-                        fontSize: `${draftFontSize}px`,
+                        fontSize: `${previewFontSize}px`,
                         textShadow: "0 2px 8px rgba(0, 0, 0, 0.55)",
                       }}
                     >
