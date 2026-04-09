@@ -8,6 +8,8 @@ type CreateTextOverlayPageProps = {
   videoId: string;
 };
 
+type PositionPreset = "top" | "center" | "bottom";
+
 type VideoRecord = {
   video_id: string;
   video_title: string;
@@ -21,10 +23,26 @@ type TextOverlay = {
   text: string;
   startSeconds: number;
   endSeconds: number;
+  fontSize: number;
+  textColor: string;
+  positionPreset: PositionPreset;
 };
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const MIN_FONT_SIZE = 40;
+const MAX_FONT_SIZE = 300;
+const DEFAULT_FONT_SIZE = 48;
+const DEFAULT_TEXT_COLOR = "#000000";
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+const normalizeHexColor = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  if (!HEX_COLOR_PATTERN.test(withHash)) return null;
+  return withHash.toUpperCase();
+};
 
 const getErrorMessage = async (response: Response): Promise<string | null> => {
   try {
@@ -114,6 +132,12 @@ export default function CreateTextOverlayPage({
   const [draftText, setDraftText] = useState("");
   const [draftStart, setDraftStart] = useState(0);
   const [draftEnd, setDraftEnd] = useState(1);
+  const [draftFontSize, setDraftFontSize] = useState(DEFAULT_FONT_SIZE);
+  const [draftTextColor, setDraftTextColor] = useState(DEFAULT_TEXT_COLOR);
+  const [draftTextColorInput, setDraftTextColorInput] =
+    useState(DEFAULT_TEXT_COLOR);
+  const [draftPositionPreset, setDraftPositionPreset] =
+    useState<PositionPreset>("top");
   const [uiNote, setUiNote] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -163,6 +187,10 @@ export default function CreateTextOverlayPage({
     setDraftText("");
     setDraftStart(0);
     setDraftEnd(Math.max(1, Math.min(videoDuration, 3)));
+    setDraftFontSize(DEFAULT_FONT_SIZE);
+    setDraftTextColor(DEFAULT_TEXT_COLOR);
+    setDraftTextColorInput(DEFAULT_TEXT_COLOR);
+    setDraftPositionPreset("top");
     setUiNote(null);
     setIsDialogOpen(true);
   };
@@ -187,19 +215,60 @@ export default function CreateTextOverlayPage({
     setDraftEnd(clampedEnd);
   };
 
+  const onFontSizeChange = (raw: number) => {
+    const clamped = Math.max(
+      MIN_FONT_SIZE,
+      Math.min(Math.floor(raw), MAX_FONT_SIZE)
+    );
+    setDraftFontSize(clamped);
+  };
+
+  const onColorPickerChange = (value: string) => {
+    const normalized = normalizeHexColor(value);
+    if (!normalized) return;
+    setDraftTextColor(normalized);
+    setDraftTextColorInput(normalized);
+  };
+
+  const onColorInputChange = (value: string) => {
+    setDraftTextColorInput(value);
+    const normalized = normalizeHexColor(value);
+    if (normalized) {
+      setDraftTextColor(normalized);
+    }
+  };
+
+  const onColorInputBlur = () => {
+    setDraftTextColorInput(draftTextColor);
+  };
+
   const canCreateDraft =
     draftText.trim().length > 0 &&
     draftEnd > draftStart &&
-    draftEnd <= videoDuration;
+    draftEnd <= videoDuration &&
+    draftFontSize >= MIN_FONT_SIZE &&
+    draftFontSize <= MAX_FONT_SIZE &&
+    normalizeHexColor(draftTextColor) !== null;
+
+  const previewAlignmentClass =
+    draftPositionPreset === "top"
+      ? "items-start pt-6"
+      : draftPositionPreset === "center"
+        ? "items-center"
+        : "items-end pb-6";
 
   const addOverlay = () => {
     if (!canCreateDraft) return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const textColor = normalizeHexColor(draftTextColor) ?? DEFAULT_TEXT_COLOR;
     const overlay: TextOverlay = {
       id,
       text: draftText.trim(),
       startSeconds: draftStart,
       endSeconds: draftEnd,
+      fontSize: draftFontSize,
+      textColor,
+      positionPreset: draftPositionPreset,
     };
     setOverlays((previous) => [...previous, overlay]);
     setIsDialogOpen(false);
@@ -226,12 +295,13 @@ export default function CreateTextOverlayPage({
           end_time: overlay.endSeconds,
           duration: overlay.endSeconds - overlay.startSeconds,
           position: {
-            preset: "top",
+            preset: overlay.positionPreset,
             x: "center",
             y: "center",
           },
           style: {
-            font_size: 16,
+            font_size: overlay.fontSize,
+            text_color: overlay.textColor,
             font_weight: "normal",
           },
         })),
@@ -289,7 +359,7 @@ export default function CreateTextOverlayPage({
                 Create Text Overlay
               </h1>
               <p className="mt-2 text-muted">
-                Design-only screen. Add and remove overlays before backend wiring.
+                Add styled overlays and preview them live before processing.
               </p>
             </div>
             <Link className="neon-button neon-button-ghost" href="/videos">
@@ -407,6 +477,12 @@ export default function CreateTextOverlayPage({
                           <p className="text-xs text-muted">
                             End Time: {formatClock(overlay.endSeconds)}
                           </p>
+                          <p className="text-xs text-muted">
+                            Style: {overlay.fontSize}px · {overlay.textColor}
+                          </p>
+                          <p className="text-xs text-muted">
+                            Position: {overlay.positionPreset}
+                          </p>
                         </div>
                         <button
                           className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100"
@@ -488,6 +564,119 @@ export default function CreateTextOverlayPage({
                   Must be greater than start time ({formatClock(draftStart)})
                 </p>
               </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                  Font Size: {draftFontSize}px
+                </span>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
+                  <input
+                    className="neon-range w-full"
+                    type="range"
+                    min={MIN_FONT_SIZE}
+                    max={MAX_FONT_SIZE}
+                    step={1}
+                    value={draftFontSize}
+                    onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                  />
+                  <input
+                    className="neon-input text-center font-mono"
+                    type="number"
+                    min={MIN_FONT_SIZE}
+                    max={MAX_FONT_SIZE}
+                    step={1}
+                    value={draftFontSize}
+                    onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  Allowed range: {MIN_FONT_SIZE}px to {MAX_FONT_SIZE}px
+                </p>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                  Text Color
+                </span>
+                <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
+                  <input
+                    className="h-11 w-full cursor-pointer rounded-xl border border-white/20 bg-transparent p-1"
+                    type="color"
+                    value={draftTextColor}
+                    onChange={(event) => onColorPickerChange(event.target.value)}
+                    aria-label="Pick text color"
+                  />
+                  <input
+                    className="neon-input font-mono uppercase"
+                    type="text"
+                    value={draftTextColorInput}
+                    onChange={(event) => onColorInputChange(event.target.value)}
+                    onBlur={onColorInputBlur}
+                    placeholder="#000000"
+                    maxLength={7}
+                    spellCheck={false}
+                  />
+                </div>
+              </label>
+
+              <div>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                  Position
+                </span>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(["top", "center", "bottom"] as PositionPreset[]).map(
+                    (preset) => (
+                      <button
+                        key={preset}
+                        className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                          draftPositionPreset === preset
+                            ? "border-cyan-300/80 bg-cyan-400/20 text-cyan-100"
+                            : "border-white/20 bg-black/20 text-soft hover:border-white/45"
+                        }`}
+                        type="button"
+                        onClick={() => setDraftPositionPreset(preset)}
+                      >
+                        {preset[0].toUpperCase() + preset.slice(1)}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/15 bg-black/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                  Live Preview
+                </p>
+                <div className="relative mt-3 overflow-hidden rounded-xl border border-white/15 bg-black/60">
+                  {videoDownloadUrl ? (
+                    <video
+                      className="aspect-video w-full"
+                      src={videoDownloadUrl}
+                      muted
+                      playsInline
+                      loop
+                    />
+                  ) : (
+                    <div className="flex aspect-video items-center justify-center px-3 text-center text-sm text-soft">
+                      Video preview is unavailable for this item.
+                    </div>
+                  )}
+                  <div
+                    className={`pointer-events-none absolute inset-0 flex justify-center ${previewAlignmentClass}`}
+                  >
+                    <p
+                      className="max-w-[90%] break-words px-3 text-center font-semibold leading-tight"
+                      style={{
+                        color: draftTextColor,
+                        fontSize: `${draftFontSize}px`,
+                        textShadow: "0 2px 8px rgba(0, 0, 0, 0.55)",
+                      }}
+                    >
+                      {draftText.trim() || "Preview text"}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
