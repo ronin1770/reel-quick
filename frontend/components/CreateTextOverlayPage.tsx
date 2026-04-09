@@ -30,9 +30,9 @@ type TextOverlay = {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const MIN_FONT_SIZE = 40;
-const MAX_FONT_SIZE = 300;
-const DEFAULT_FONT_SIZE = 48;
+const MIN_FONT_SIZE = 14;
+const MAX_FONT_SIZE = 40;
+const DEFAULT_FONT_SIZE = 40;
 const DEFAULT_TEXT_COLOR = "#000000";
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
@@ -503,12 +503,12 @@ export default function CreateTextOverlayPage({
 
       {isDialogOpen && (
         <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 px-4 py-8"
+          className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-8 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Add text overlay"
         >
-          <div className="neon-panel w-full max-w-xl rounded-3xl p-6">
+          <div className="neon-panel my-auto max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl p-6">
             <h2 className="font-display text-2xl font-semibold">Add Text Overlay</h2>
             <p className="mt-1 text-sm text-muted">
               Select text and timing in <span className="font-mono">mm:ss</span>.
