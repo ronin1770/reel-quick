@@ -1,10 +1,20 @@
-# Reel Quick
+# Reel Quick – Open Source Instagram Reels Generator (FastAPI + Next.js + ARQ)
 
 ![Project Logo](frontend/public/logo-rectangle.jpg)
 
-This repository provides an **open-source, end-to-end solution for fast and effortless Instagram Reel creation**. It enables you to upload video clips, trim them, and seamlessly merge multiple segments into a single, high-quality reel—perfect for creating engaging short-form content.
+🚀 **Reel Quick** is an open-source Instagram reels generator built with FastAPI, Next.js, and ARQ for high-performance async video processing.
 
-The project is designed with **performance, simplicity, and automation** in mind. There are **no accounts, logins, or credentials required**, making it ideal for developers, content creators, and automation workflows.
+It enables developers and creators to automate reel creation workflows including video stitching, trimming, and text overlays—without authentication or external dependencies.
+
+---
+
+### 🔑 Keywords
+
+- instagram reels automation  
+- video text overlay python  
+- async video processing  
+- ffmpeg overlay tool  
+- reels generator API  
 
 ### ✨ Key Features
 
@@ -97,6 +107,10 @@ nvm install lts/krypton
 
 ## 🚧 Current Status
 
+*Update - Apr 10 2026*
+- Finished frontend component for adding video text overlay
+- Finished the backend component for adding video text overlay
+
 *Update - Mar 19 2026*
 - Completed the wiring the control panel
 - Using the control panel you turn on and off backend workers
@@ -118,7 +132,12 @@ nvm install lts/krypton
 - Interface was created
 - Video for the interaction will be uploaded later this week
 
+* 🔎 **Docker container - for easier setup** - Scoped
+* 🔎 **Streaming stats about the running workers and what they are processing** - Scoped
 * 🔎 **Add functionality to logs for each worker in the control panel** — Scoped
+* ✅ **Added Voice Cloner Component** — Completed
+* ✅ **Added Video text overlay creator** — Completed
+* ✅ **Added Video reels creator** — Completed
 * ✅ **Added Control panel to start/stop workers** — Completed
 * ✅ **Frontend wiring for Sound Designer** — Completed
 * 🚧 **Frontend to display prominent figures and quotes** — On Hold
@@ -149,6 +168,8 @@ nvm install lts/krypton
 ![Custom Voice List](docs/img-8.png)
 
 ![Control Panel](docs/img-9.png)
+
+
 
 
 
