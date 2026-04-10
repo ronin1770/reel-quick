@@ -592,142 +592,144 @@ export default function CreateTextOverlayPage({
           aria-modal="true"
           aria-label="Add text overlay"
         >
-          <div className="neon-panel my-auto max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl p-6">
+          <div className="neon-panel my-auto max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-3xl p-6">
             <h2 className="font-display text-2xl font-semibold">Add Text Overlay</h2>
             <p className="mt-1 text-sm text-muted">
               Select text and timing in <span className="font-mono">mm:ss</span>.
             </p>
 
-            <div className="mt-5 space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  Text
-                </span>
-                <input
-                  className="neon-input"
-                  type="text"
-                  value={draftText}
-                  onChange={(event) => setDraftText(event.target.value)}
-                  placeholder="Enter overlay text"
-                  maxLength={120}
-                />
-              </label>
+            <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:items-start">
+              <div className="space-y-5">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    Text
+                  </span>
+                  <input
+                    className="neon-input"
+                    type="text"
+                    value={draftText}
+                    onChange={(event) => setDraftText(event.target.value)}
+                    placeholder="Enter overlay text"
+                    maxLength={120}
+                  />
+                </label>
 
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  Start Time: {formatClock(draftStart)}
-                </span>
-                <input
-                  className="neon-range w-full"
-                  type="range"
-                  min={0}
-                  max={maxStart}
-                  step={1}
-                  value={draftStart}
-                  onChange={(event) => onStartChange(Number(event.target.value))}
-                />
-                <p className="mt-1 text-xs text-muted">
-                  From {formatClock(0)} to {formatClock(maxStart)}
-                </p>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  End Time: {formatClock(draftEnd)}
-                </span>
-                <input
-                  className="neon-range w-full"
-                  type="range"
-                  min={minEnd}
-                  max={videoDuration}
-                  step={1}
-                  value={draftEnd}
-                  onChange={(event) => onEndChange(Number(event.target.value))}
-                />
-                <p className="mt-1 text-xs text-muted">
-                  Must be greater than start time ({formatClock(draftStart)})
-                </p>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  Font Size: {draftFontSize}px
-                </span>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    Start Time: {formatClock(draftStart)}
+                  </span>
                   <input
                     className="neon-range w-full"
                     type="range"
-                    min={MIN_FONT_SIZE}
-                    max={MAX_FONT_SIZE}
+                    min={0}
+                    max={maxStart}
                     step={1}
-                    value={draftFontSize}
-                    onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                    value={draftStart}
+                    onChange={(event) => onStartChange(Number(event.target.value))}
                   />
+                  <p className="mt-1 text-xs text-muted">
+                    From {formatClock(0)} to {formatClock(maxStart)}
+                  </p>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    End Time: {formatClock(draftEnd)}
+                  </span>
                   <input
-                    className="neon-input text-center font-mono"
-                    type="number"
-                    min={MIN_FONT_SIZE}
-                    max={MAX_FONT_SIZE}
+                    className="neon-range w-full"
+                    type="range"
+                    min={minEnd}
+                    max={videoDuration}
                     step={1}
-                    value={draftFontSize}
-                    onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                    value={draftEnd}
+                    onChange={(event) => onEndChange(Number(event.target.value))}
                   />
-                </div>
-                <p className="mt-1 text-xs text-muted">
-                  Allowed range: {MIN_FONT_SIZE}px to {MAX_FONT_SIZE}px
-                </p>
-              </label>
+                  <p className="mt-1 text-xs text-muted">
+                    Must be greater than start time ({formatClock(draftStart)})
+                  </p>
+                </label>
 
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  Text Color
-                </span>
-                <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
-                  <input
-                    className="h-11 w-full cursor-pointer rounded-xl border border-white/20 bg-transparent p-1"
-                    type="color"
-                    value={draftTextColor}
-                    onChange={(event) => onColorPickerChange(event.target.value)}
-                    aria-label="Pick text color"
-                  />
-                  <input
-                    className="neon-input font-mono uppercase"
-                    type="text"
-                    value={draftTextColorInput}
-                    onChange={(event) => onColorInputChange(event.target.value)}
-                    onBlur={onColorInputBlur}
-                    placeholder="#000000"
-                    maxLength={7}
-                    spellCheck={false}
-                  />
-                </div>
-              </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    Font Size: {draftFontSize}px
+                  </span>
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
+                    <input
+                      className="neon-range w-full"
+                      type="range"
+                      min={MIN_FONT_SIZE}
+                      max={MAX_FONT_SIZE}
+                      step={1}
+                      value={draftFontSize}
+                      onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                    />
+                    <input
+                      className="neon-input text-center font-mono"
+                      type="number"
+                      min={MIN_FONT_SIZE}
+                      max={MAX_FONT_SIZE}
+                      step={1}
+                      value={draftFontSize}
+                      onChange={(event) => onFontSizeChange(Number(event.target.value))}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    Allowed range: {MIN_FONT_SIZE}px to {MAX_FONT_SIZE}px
+                  </p>
+                </label>
 
-              <div>
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
-                  Position
-                </span>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {(["top", "center", "bottom"] as PositionPreset[]).map(
-                    (preset) => (
-                      <button
-                        key={preset}
-                        className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                          draftPositionPreset === preset
-                            ? "border-cyan-300/80 bg-cyan-400/20 text-cyan-100"
-                            : "border-white/20 bg-black/20 text-soft hover:border-white/45"
-                        }`}
-                        type="button"
-                        onClick={() => setDraftPositionPreset(preset)}
-                      >
-                        {preset[0].toUpperCase() + preset.slice(1)}
-                      </button>
-                    )
-                  )}
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    Text Color
+                  </span>
+                  <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
+                    <input
+                      className="h-11 w-full cursor-pointer rounded-xl border border-white/20 bg-transparent p-1"
+                      type="color"
+                      value={draftTextColor}
+                      onChange={(event) => onColorPickerChange(event.target.value)}
+                      aria-label="Pick text color"
+                    />
+                    <input
+                      className="neon-input font-mono uppercase"
+                      type="text"
+                      value={draftTextColorInput}
+                      onChange={(event) => onColorInputChange(event.target.value)}
+                      onBlur={onColorInputBlur}
+                      placeholder="#000000"
+                      maxLength={7}
+                      spellCheck={false}
+                    />
+                  </div>
+                </label>
+
+                <div>
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-soft">
+                    Position
+                  </span>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {(["top", "center", "bottom"] as PositionPreset[]).map(
+                      (preset) => (
+                        <button
+                          key={preset}
+                          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                            draftPositionPreset === preset
+                              ? "border-cyan-300/80 bg-cyan-400/20 text-cyan-100"
+                              : "border-white/20 bg-black/20 text-soft hover:border-white/45"
+                          }`}
+                          type="button"
+                          onClick={() => setDraftPositionPreset(preset)}
+                        >
+                          {preset[0].toUpperCase() + preset.slice(1)}
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/15 bg-black/20 p-3">
+              <div className="rounded-2xl border border-white/15 bg-black/20 p-3 lg:sticky lg:top-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-soft">
                   Live Preview
                 </p>
