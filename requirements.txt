@@ -13,5 +13,3 @@ qwen-tts
 torch
 torchvision
 torchaudio
-
-flash-attn
