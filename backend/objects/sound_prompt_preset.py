@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from objects.sound_prompt_creator import (
+from backend.objects.sound_prompt_creator import (
     SoundPromptCreator,
     VoiceDesignRequest,
 )

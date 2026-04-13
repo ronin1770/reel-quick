@@ -30,17 +30,21 @@ from pydantic import BaseModel, Field, ValidationError
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from db import get_db, init_db
-from logger import get_logger
-from objects.prompt_constants import AI_TYPE_PROMPT_MAP, AI_TYPE_REQUIRED_FIELDS, AI_TYPES
-from objects.sound_prompt_creator import (
+from backend.db import get_db, init_db
+from backend.logger import get_logger
+from backend.objects.prompt_constants import (
+    AI_TYPE_PROMPT_MAP,
+    AI_TYPE_REQUIRED_FIELDS,
+    AI_TYPES,
+)
+from backend.objects.sound_prompt_creator import (
     SoundPromptCreator,
     VoiceProfile as SoundPromptVoiceProfile,
 )
-from objects.sound_prompt_preset import SoundPromptPreset
-from models.person_bio import PERSON_BIO_COLLECTION
-from models.quotes import QUOTES_COLLECTION
-from models.raw_posts_data import (
+from backend.objects.sound_prompt_preset import SoundPromptPreset
+from backend.models.person_bio import PERSON_BIO_COLLECTION
+from backend.models.quotes import QUOTES_COLLECTION
+from backend.models.raw_posts_data import (
     RAW_POSTS_COLLECTION,
     RawPostsDataCreate,
     RawPostsDataModel,
@@ -48,32 +52,35 @@ from models.raw_posts_data import (
     RawPostsDataUpdate,
     _now_str,
 )
-from models.sound_design_prompt import (
+from backend.models.sound_design_prompt import (
     SOUND_DESIGN_PROMPT_COLLECTION,
     SoundDesignPromptModel,
     SoundDesignPromptStatus,
 )
-from models.custom_voices import CUSTOM_VOICES_COLLECTION
-from models.text_overlay_jobs import (
+from backend.models.custom_voices import CUSTOM_VOICES_COLLECTION
+from backend.models.text_overlay_jobs import (
     TEXT_OVERLAY_JOB_COLLECTION,
     TextOverlayEnqueueRequest,
     TextOverlayEnqueueResponse,
     TextOverlayJobModel,
 )
-from models.video_model import VideoCreate, VideoSchema, VideoUpdate
-from models.voice_job_status import VOICE_CLONE_JOB_COLLECTION, VoiceCloneJobModel
-from models.video_part_model import (
+from backend.models.video_model import VideoCreate, VideoSchema, VideoUpdate
+from backend.models.voice_job_status import (
+    VOICE_CLONE_JOB_COLLECTION,
+    VoiceCloneJobModel,
+)
+from backend.models.video_part_model import (
     VideoPartCreate,
     VideoPartSchema,
     VideoPartUpdate,
 )
-from models.video_text import (
+from backend.models.video_text import (
     VIDEO_OVERLAY_TEXT_COLLECTION,
     VideoTextModel,
     VideoTextOverlayItemsUpsert,
     VideoTextSchema,
 )
-from workers.queue_names import (
+from backend.workers.queue_names import (
     AI_QUEUE_NAME,
     POST_QUEUE_NAME,
     SOUND_DESIGNER_QUEUE_NAME,
