@@ -251,26 +251,27 @@ export default function CreateVideoPage() {
     return results;
   };
 
-  const addPartEntry = useCallback((file: VideoFile, start: number, end: number) => {
-    if (!file.location) return;
+const addPartEntry = useCallback((file: VideoFile, start: number, end: number) => {
+  const fileLocation = file.location;
+  if (!fileLocation) return;
 
-    const selectedDuration = Math.max(0, end - start);
-    const partId = `${file.file.name}-${Date.now()}`;
+  const selectedDuration = Math.max(0, end - start);
+  const partId = `${file.file.name}-${Date.now()}`;
 
-    setParts((prev) => [
-      ...prev,
-      {
-        id: partId,
-        fileName: file.file.name,
-        fileLocation: file.location,
-        start,
-        end,
-        selectedDuration: Number(selectedDuration.toFixed(2)),
-        synced: false,
-      },
-    ]);
-    setIsEnqueued(false);
-  }, []);
+  setParts((prev) => [
+    ...prev,
+    {
+      id: partId,
+      fileName: file.file.name,
+      fileLocation,
+      start,
+      end,
+      selectedDuration: Number(selectedDuration.toFixed(2)),
+      synced: false,
+    },
+  ]);
+  setIsEnqueued(false);
+}, []);
 
   useEffect(() => {
     if (!pendingPartIntent) return;
