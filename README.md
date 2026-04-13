@@ -141,9 +141,9 @@ nvm install lts/krypton
 * ✅ **Added Control panel to start/stop workers** — Completed
 * ✅ **Frontend wiring for Sound Designer** — Completed
 * 🚧 **Frontend to display prominent figures and quotes** — On Hold
-* ✅ **Backend API (FastAPI)** — completed
-* ✅ **Frontend (Next.js)** — core video creation workflow implemented
-* ✅ **Background Worker (ARQ-based)** — currently under active development
+* ✅ **Backend API (FastAPI)** — Completed
+* ✅ **Frontend (Next.js)** — Completed
+* ✅ **Background Worker (ARQ-based)** — Completed
 
 ---
 
@@ -168,6 +168,10 @@ nvm install lts/krypton
 ![Custom Voice List](docs/img-8.png)
 
 ![Control Panel](docs/img-9.png)
+
+![Text Overlay Creator](docs/img-10.png)
+
+![Text Overlay Creator](docs/img-11.png)
 
 
 

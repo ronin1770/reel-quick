@@ -1,0 +1,10 @@
+pymongo
+fastapi
+python-multipart
+uvicorn[standard]
+python-dotenv
+arq
+moviepy
+langchain-openai
+soundfile
+pydantic

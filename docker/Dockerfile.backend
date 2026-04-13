@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/requirements.core.txt /tmp/requirements.core.txt
+RUN python -m pip install --upgrade pip && \
+    pip install -r /tmp/requirements.core.txt
+
+COPY . /app
+
+RUN mkdir -p /app/video_files /app/outputs /app/logs /app/backend_runtime
+
+ENV PYTHONPATH=/app
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

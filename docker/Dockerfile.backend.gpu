@@ -1,0 +1,33 @@
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    build-essential \
+    git \
+    curl \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+COPY requirements.txt /tmp/requirements.txt
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install -r /tmp/requirements.txt
+
+COPY . /app
+
+RUN mkdir -p /app/video_files /app/outputs /app/logs /app/backend_runtime
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "arq", "backend.workers.voice_cloner_worker.WorkerSettings"]

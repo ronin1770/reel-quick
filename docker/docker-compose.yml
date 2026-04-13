@@ -1,0 +1,209 @@
+name: reel-quick
+
+x-backend-common: &backend-common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.backend
+  image: reel-quick/backend:prod
+  restart: unless-stopped
+  env_file:
+    - docker/env/backend.env
+  environment:
+    PYTHONUNBUFFERED: "1"
+    TZ: Asia/Karachi
+    MONGODB_URI: mongodb://mongo:27017
+    REDIS_URL: redis://redis:6379/1
+    OUTPUT_FILES_LOCATION: /app/outputs
+    LOG_LOCATION: /app/logs/reel_quick.log
+  depends_on:
+    mongo:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - app
+  volumes:
+    - video_files:/app/video_files
+    - output_files:/app/outputs
+    - backend_logs:/app/logs
+    - worker_runtime:/app/backend_runtime
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_started
+      api:
+        condition: service_started
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - output_files:/var/www/output_files:ro
+      - backend_logs:/var/www/logs:ro
+    networks:
+      - app
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api
+    image: reel-quick/frontend:prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_API_BASE_URL: /api
+    expose:
+      - "3000"
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - app
+
+  api:
+    <<: *backend-common
+    command: >-
+      sh -lc "python -m backend.db &&
+      uvicorn backend.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'
+import urllib.request
+urllib.request.urlopen('http://127.0.0.1:8000/docs', timeout=3)
+print('ok')
+PY"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  worker-video:
+    <<: *backend-common
+    command: ["python", "-m", "arq", "backend.workers.video_maker.WorkerSettings"]
+
+  worker-post:
+    <<: *backend-common
+    command: ["python", "-m", "arq", "backend.workers.post_worker.WorkerSettings"]
+
+  worker-ai:
+    <<: *backend-common
+    command: ["python", "-m", "arq", "backend.workers.ai_worker.WorkerSettings"]
+
+  worker-text-overlay:
+    <<: *backend-common
+    command: ["python", "-m", "arq", "backend.workers.text_overlay_worker.WorkerSettings"]
+
+  worker-voice-cloner:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.gpu
+    image: reel-quick/backend-gpu:prod
+    restart: unless-stopped
+    env_file:
+      - docker/env/backend.env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: Asia/Karachi
+      MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/1
+      OUTPUT_FILES_LOCATION: /app/outputs
+      LOG_LOCATION: /app/logs/reel_quick.log
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    command: ["python", "-m", "arq", "backend.workers.voice_cloner_worker.WorkerSettings"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app
+    volumes:
+      - video_files:/app/video_files
+      - output_files:/app/outputs
+      - backend_logs:/app/logs
+      - worker_runtime:/app/backend_runtime
+    profiles: ["gpu"]
+
+  worker-sound-designer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.gpu
+    image: reel-quick/backend-gpu:prod
+    restart: unless-stopped
+    env_file:
+      - docker/env/backend.env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: Asia/Karachi
+      MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/1
+      OUTPUT_FILES_LOCATION: /app/outputs
+      LOG_LOCATION: /app/logs/reel_quick.log
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    command: ["python", "-m", "arq", "backend.workers.sound_designer_worker.WorkerSettings"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app
+    volumes:
+      - video_files:/app/video_files
+      - output_files:/app/outputs
+      - backend_logs:/app/logs
+      - worker_runtime:/app/backend_runtime
+    profiles: ["gpu"]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app
+
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    env_file:
+      - docker/env/mongo.env
+    environment:
+      MONGO_INITDB_DATABASE: instagram_reel_creator
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://127.0.0.1:27017/admin", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app
+
+networks:
+  app:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  redis_data:
+  video_files:
+  output_files:
+  backend_logs:
+  worker_runtime:
