@@ -2,12 +2,12 @@ name: reel-quick
 
 x-backend-common: &backend-common
   build:
-    context: .
+    context: ..
     dockerfile: docker/Dockerfile.backend
   image: reel-quick/backend:prod
   restart: unless-stopped
   env_file:
-    - docker/env/backend.env
+    - backend.env
   environment:
     PYTHONUNBUFFERED: "1"
     TZ: Asia/Karachi
@@ -40,7 +40,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - output_files:/var/www/output_files:ro
       - backend_logs:/var/www/logs:ro
     networks:
@@ -48,7 +48,7 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile.frontend
       args:
         NEXT_PUBLIC_API_BASE_URL: /api
@@ -102,12 +102,12 @@ PY"]
 
   worker-voice-cloner:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile.backend.gpu
     image: reel-quick/backend-gpu:prod
     restart: unless-stopped
     env_file:
-      - docker/env/backend.env
+      - backend.env
     environment:
       PYTHONUNBUFFERED: "1"
       TZ: Asia/Karachi
@@ -134,12 +134,12 @@ PY"]
 
   worker-sound-designer:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile.backend.gpu
     image: reel-quick/backend-gpu:prod
     restart: unless-stopped
     env_file:
-      - docker/env/backend.env
+      - backend.env
     environment:
       PYTHONUNBUFFERED: "1"
       TZ: Asia/Karachi
@@ -182,7 +182,7 @@ PY"]
     image: mongo:8.0
     restart: unless-stopped
     env_file:
-      - docker/env/mongo.env
+      - mongo.env
     environment:
       MONGO_INITDB_DATABASE: instagram_reel_creator
     volumes:

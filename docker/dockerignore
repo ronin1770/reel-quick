@@ -13,6 +13,8 @@
 frontend/.next
 .env
 video_files
+uploads
 outputs
+output_files
 logs
 llogs

@@ -18,12 +18,12 @@ The repo's root requirements include the regular API stack plus heavy CUDA/Torch
 
 ## Run CPU-only production stack
 ```bash
-docker compose up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 ## Run with GPU workers
 ```bash
-docker compose --profile gpu up -d --build
+docker compose -f docker/docker-compose.yml --profile gpu up -d --build
 ```
 
 ## Paths and volumes
