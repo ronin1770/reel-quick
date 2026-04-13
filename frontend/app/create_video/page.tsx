@@ -187,7 +187,8 @@ export default function CreateVideoPage() {
       }
 
       const data = (await response.json()) as { file_location?: string };
-      if (!data.file_location) {
+      const uploadedLocation = data.file_location;
+      if (!uploadedLocation) {
         throw new Error("Upload succeeded without a file_location.");
       }
 
@@ -196,7 +197,7 @@ export default function CreateVideoPage() {
           file.id === item.id
             ? {
                 ...file,
-                location: data.file_location,
+                location: uploadedLocation,
                 status: "ready",
                 error: undefined,
               }
