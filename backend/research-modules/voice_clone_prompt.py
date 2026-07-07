@@ -21,11 +21,10 @@ model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     device_map="cuda:0",
     dtype=torch.bfloat16,
-    attn_implementation="flash_attention_2",
 )
 
 ref_audio = "output.wav"
-ref_text = "I was referring to the original vintage on which the Sherry is based, sir. 1851. Unmistakable."
+ref_text = "I was referring to the original vintage on which the Sherry is based."
 
 #Create the prompt items
 
