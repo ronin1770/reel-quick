@@ -37,6 +37,7 @@ def init_db() -> Database:
     for name in (
         "videos",
         "video_parts",
+        "available_transitions",
         "video_overlay_text",
         "text_overlay_jobs",
         "raw_posts_data",
@@ -48,6 +49,9 @@ def init_db() -> Database:
             db.create_collection(name)
 
     db.videos.create_index("video_id", unique=True)
+    db.videos.create_index("transition_name")
+    db.available_transitions.create_index("id", unique=True)
+    db.available_transitions.create_index("name", unique=True)
     db.video_overlay_text.create_index("video_id", unique=True)
     db.text_overlay_jobs.create_index("video_id", unique=True)
     db.raw_posts_data.create_index("code", unique=True)

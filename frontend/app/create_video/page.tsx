@@ -31,6 +31,12 @@ type PendingPartIntent = {
   end: number;
 };
 
+type TransitionOption = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const MAX_UPLOAD_CONCURRENCY = 2;
@@ -103,6 +109,10 @@ export default function CreateVideoPage() {
     timeline?: string;
     upload?: string;
   }>({});
+  const [transitionOptions, setTransitionOptions] = useState<TransitionOption[]>([]);
+  const [selectedTransition, setSelectedTransition] = useState("fade");
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [isLoadingTransitions, setIsLoadingTransitions] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -155,6 +165,52 @@ export default function CreateVideoPage() {
       return rest;
     });
   }, [activeFile?.status]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTransitions = async () => {
+      setIsLoadingTransitions(true);
+      setTransitionError(null);
+
+      try {
+        const response = await fetch(`${API_BASE}/available-transitions?active=true`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error(`Unable to load transitions (${response.status})`);
+        }
+
+        const data = (await response.json()) as TransitionOption[];
+        if (cancelled) return;
+
+        const nextOptions = Array.isArray(data) ? data : [];
+        setTransitionOptions(nextOptions);
+        setSelectedTransition((current) => {
+          if (nextOptions.some((item) => item.name === current)) {
+            return current;
+          }
+          return nextOptions[0]?.name ?? "";
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setTransitionOptions([]);
+        setTransitionError(
+          error instanceof Error ? error.message : "Unable to load transitions."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTransitions(false);
+        }
+      }
+    };
+
+    void loadTransitions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleBrowse = () => {
     fileInputRef.current?.click();
@@ -442,6 +498,11 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
       return;
     }
 
+    if (!selectedTransition) {
+      setErrorMessage("Select an active transition before creating the video.");
+      return;
+    }
+
     setIsCreatingVideo(true);
     try {
       const createdNow = !videoId;
@@ -450,6 +511,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
       if (!nextVideoId) {
         const payload: Record<string, unknown> = {
           video_title: trimmedTitle,
+          transition_name: selectedTransition,
           active: true,
         };
         const trimmedDescription = videoDescription.trim();
@@ -642,6 +704,38 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                 value={videoDescription}
                 onChange={(event) => setVideoDescription(event.target.value)}
               />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[180px_1fr] items-start">
+              <label className="pt-2 text-sm font-semibold text-soft">
+                Scene Transition
+              </label>
+              <div className="space-y-2">
+                <select
+                  className="neon-input"
+                  value={selectedTransition}
+                  onChange={(event) => setSelectedTransition(event.target.value)}
+                  disabled={isLoadingTransitions || transitionOptions.length === 0}
+                >
+                  {transitionOptions.length === 0 ? (
+                    <option value="">
+                      {isLoadingTransitions ? "Loading transitions..." : "No transitions"}
+                    </option>
+                  ) : (
+                    transitionOptions.map((option) => (
+                      <option key={option.id} value={option.name}>
+                        {option.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="text-xs text-soft">
+                  One active transition is applied at every scene boundary.
+                </p>
+                {transitionError && (
+                  <p className="text-xs text-rose-200">{transitionError}</p>
+                )}
+              </div>
             </div>
           </div>
 

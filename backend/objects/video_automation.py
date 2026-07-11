@@ -10,7 +10,7 @@
 
 from moviepy import *
 #import numpy as np
-import json,sys,os,subprocess,tempfile
+import json,os,shutil,subprocess,tempfile
 from config import *
 from backend.logger import get_logger
 
@@ -29,7 +29,9 @@ class VideoAutomation:
         if self.processing_data == {}:
             self.logger.error("Invalid processing data in JSON file. Can't continue.")
             return False
-        
+
+        temp_files = []
+        temp_dir = None
         try:
             # Lower process priority to keep the system responsive
             try:
@@ -45,21 +47,29 @@ class VideoAutomation:
                 len(clip_specs),
                 output_file,
             )
-            
+
             # Resource-friendly settings
             target_width = 1440
             target_size = None
             target_fps = None
             ffmpeg_threads = 1
-            ffmpeg_params = ["-filter_threads", "1", "-filter_complex_threads", "1"]
+            ffmpeg_params = [
+                "-filter_threads",
+                "1",
+                "-filter_complex_threads",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+            ]
             drop_audio = True
+            transition_name = self._transition_name()
+            transition_duration = self._transition_duration()
 
             # Render each clip to an isolated temp folder to prevent cross-job collisions.
             output_root = os.path.abspath(OUTPUT_FOLDER or ".")
             os.makedirs(output_root, exist_ok=True)
             temp_dir = tempfile.mkdtemp(prefix="segments_", dir=output_root)
-            temp_files = []
-            concat_list_path = None
+            clip_durations = []
 
             # Process each input video according to durations.
             for index, clip_spec in enumerate(clip_specs):
@@ -94,96 +104,80 @@ class VideoAutomation:
                 )
 
                 # Load and process the clip
-                clip = VideoFileClip(video_path)
-                if target_fps is None:
-                    target_fps = clip.fps or 30
-                clip = clip.subclipped(start, end)
-                clip = clip.with_effects([vfx.FadeOut(1)]).resized(width=target_width)
-                if target_size is None:
-                    target_size = clip.size
-                elif clip.size != target_size:
-                    # Fallback to direct resize to ensure consistent dimensions for concat
-                    clip = clip.resized(width=target_size[0], height=target_size[1])
-                if drop_audio:
-                    clip = clip.without_audio()
-
-                # Write the normalized segment to disk, then close the clip
+                clip = None
                 temp_file = os.path.join(
                     temp_dir,
                     f"segment_{index:03d}_part_{part_number}.mp4",
                 )
-                clip.write_videofile(
-                    temp_file,
-                    codec="libx264",
-                    audio=False,
-                    fps=target_fps,
-                    threads=ffmpeg_threads,
-                    ffmpeg_params=ffmpeg_params,
-                )
-                clip.close()
+                try:
+                    clip = VideoFileClip(video_path)
+                    if target_fps is None:
+                        target_fps = int(round(clip.fps or 30))
+                    clip = clip.subclipped(start, end).resized(width=target_width)
+                    if target_size is None:
+                        target_size = clip.size
+                    elif clip.size != target_size:
+                        # Keep output dimensions aligned for xfade compatibility.
+                        clip = clip.resized(width=target_size[0], height=target_size[1])
+                    if drop_audio:
+                        clip = clip.without_audio()
+
+                    clip.write_videofile(
+                        temp_file,
+                        codec="libx264",
+                        audio=False,
+                        fps=target_fps,
+                        threads=ffmpeg_threads,
+                        ffmpeg_params=ffmpeg_params,
+                    )
+                finally:
+                    if clip is not None:
+                        clip.close()
+
                 temp_files.append(temp_file)
+                clip_durations.append(end - start)
 
             if not temp_files:
                 self.logger.error("No clips were generated from the inputs.")
                 return False
 
-            # Concatenate using ffmpeg concat demuxer to avoid loading everything into RAM
             output_path = os.path.join(output_root, output_file)
-            concat_list_path = os.path.join(temp_dir, "concat_list.txt")
-            with open(concat_list_path, "w") as concat_file:
-                for temp_file in temp_files:
-                    safe_path = os.path.abspath(temp_file).replace("'", "\\'")
-                    concat_file.write(f"file '{safe_path}'\n")
+            if len(temp_files) == 1:
+                shutil.copyfile(temp_files[0], output_path)
+                return True
 
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", concat_list_path,
-                "-c", "copy",
-                "-threads", str(ffmpeg_threads),
-                output_path,
-            ]
-            result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
-                self.logger.warning("ffmpeg concat failed. Falling back to re-encode.")
-                ffmpeg_cmd = [
-                    "ffmpeg",
-                    "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", concat_list_path,
-                    "-c:v", "libx264",
-                    "-r", str(target_fps or 30),
-                    "-an",
-                    "-threads", str(ffmpeg_threads),
-                    output_path,
-                ]
-                result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if result.returncode != 0:
-                    self.logger.error("ffmpeg re-encode failed: %s", result.stderr)
-                    return False
-            return True
+            if transition_name:
+                self._validate_transition_duration(clip_durations, transition_duration)
+                return self._render_transitioned_output(
+                    temp_files=temp_files,
+                    clip_durations=clip_durations,
+                    output_path=output_path,
+                    transition_name=transition_name,
+                    transition_duration=transition_duration,
+                    target_fps=target_fps or 30,
+                    ffmpeg_threads=ffmpeg_threads,
+                )
+
+            return self._concat_temp_files(
+                temp_files=temp_files,
+                temp_dir=temp_dir,
+                output_path=output_path,
+                target_fps=target_fps or 30,
+                ffmpeg_threads=ffmpeg_threads,
+            )
 
         except Exception as e:
             self.logger.exception("Exception in process_and_create_output: %s", str(e))
             return False
         finally:
             # Cleanup temp files/segments and concat list
-            for temp_file in temp_files if "temp_files" in locals() else []:
+            for temp_file in temp_files:
                 try:
                     if os.path.exists(temp_file):
                         os.remove(temp_file)
                 except Exception:
                     pass
-            if "concat_list_path" in locals() and concat_list_path:
-                try:
-                    if os.path.exists(concat_list_path):
-                        os.remove(concat_list_path)
-                except Exception:
-                    pass
-            if "temp_dir" in locals():
+            if temp_dir:
                 try:
                     if os.path.isdir(temp_dir):
                         for name in os.listdir(temp_dir):
@@ -194,6 +188,155 @@ class VideoAutomation:
                             os.rmdir(temp_dir)
                 except Exception:
                     pass
+
+    def _transition_name(self):
+        raw_value = self.processing_data.get("transition_name")
+        if raw_value is None:
+            return None
+        value = str(raw_value).strip().lower()
+        return value or None
+
+    def _transition_duration(self):
+        raw_value = self.processing_data.get("transition_duration", 1.0)
+        duration = float(raw_value)
+        if duration <= 0:
+            raise ValueError("transition_duration must be greater than 0")
+        return duration
+
+    def _validate_transition_duration(self, clip_durations, transition_duration):
+        for index, duration in enumerate(clip_durations, start=1):
+            if duration <= transition_duration:
+                raise ValueError(
+                    f"Clip {index} must be longer than the transition duration ({transition_duration}s)"
+                )
+
+    def _concat_temp_files(self, temp_files, temp_dir, output_path, target_fps, ffmpeg_threads):
+        concat_list_path = os.path.join(temp_dir, "concat_list.txt")
+        with open(concat_list_path, "w") as concat_file:
+            for temp_file in temp_files:
+                safe_path = os.path.abspath(temp_file).replace("'", "\\'")
+                concat_file.write(f"file '{safe_path}'\n")
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_list_path,
+            "-c",
+            "copy",
+            "-threads",
+            str(ffmpeg_threads),
+            output_path,
+        ]
+        result = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode == 0:
+            return True
+
+        self.logger.warning("ffmpeg concat failed. Falling back to re-encode.")
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_list_path,
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            str(target_fps or 30),
+            "-an",
+            "-threads",
+            str(ffmpeg_threads),
+            output_path,
+        ]
+        result = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.logger.error("ffmpeg re-encode failed: %s", result.stderr)
+            return False
+        return True
+
+    def _render_transitioned_output(
+        self,
+        temp_files,
+        clip_durations,
+        output_path,
+        transition_name,
+        transition_duration,
+        target_fps,
+        ffmpeg_threads,
+    ):
+        filter_parts = []
+        current_stream = "0:v"
+        cumulative_duration = clip_durations[0]
+
+        for index in range(1, len(temp_files)):
+            next_stream = f"{index}:v"
+            output_stream = f"v{index}"
+            offset = cumulative_duration - transition_duration
+            filter_parts.append(
+                f"[{current_stream}][{next_stream}]"
+                f"xfade=transition={transition_name}:duration={transition_duration:.3f}:offset={offset:.3f}"
+                f"[{output_stream}]"
+            )
+            current_stream = output_stream
+            cumulative_duration = cumulative_duration + clip_durations[index] - transition_duration
+
+        ffmpeg_cmd = ["ffmpeg", "-y"]
+        for temp_file in temp_files:
+            ffmpeg_cmd.extend(["-i", temp_file])
+        ffmpeg_cmd.extend(
+            [
+                "-filter_threads",
+                "1",
+                "-filter_complex_threads",
+                "1",
+                "-filter_complex",
+                ";".join(filter_parts),
+                "-map",
+                f"[{current_stream}]",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-r",
+                str(target_fps or 30),
+                "-threads",
+                str(ffmpeg_threads),
+                output_path,
+            ]
+        )
+
+        result = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.logger.error("ffmpeg xfade failed: %s", result.stderr)
+            return False
+        return True
 
     def _read_clip_specs(self):
         clips = self.processing_data.get("clips")
