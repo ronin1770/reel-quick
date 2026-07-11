@@ -89,7 +89,7 @@ export default function RawPostDetailPage({
             {error ?? "The selected raw post could not be loaded."}
           </p>
           <Link
-            className="mt-6 inline-flex text-sm font-semibold text-emerald-200 underline decoration-emerald-400/70 underline-offset-4 transition hover:text-emerald-100"
+            className="theme-link mt-6 inline-flex text-sm font-semibold"
             href="/prominent_figures"
           >
             Back to posts

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Oxanium, Space_Grotesk } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
+import ThemeScript from "@/components/ThemeScript";
+import ThemeSelector from "@/components/ThemeSelector";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -32,7 +34,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body
         className={`${spaceGrotesk.variable} ${oxanium.variable} antialiased`}
       >
@@ -79,6 +84,7 @@ export default function RootLayout({
                 </Link>
               </nav>
               <div className="app-header__actions">
+                <ThemeSelector />
                 <Link
                   className="neon-button neon-button-primary"
                   href="/create_video"

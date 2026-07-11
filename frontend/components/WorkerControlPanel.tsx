@@ -209,17 +209,9 @@ export default function WorkerControlPanel() {
           </button>
         </div>
 
-        {feedback ? (
-          <p className="mt-4 rounded-xl border border-emerald-400/50 bg-emerald-500/20 px-4 py-3 text-sm text-emerald-100">
-            {feedback}
-          </p>
-        ) : null}
+        {feedback ? <p className="alert alert-success mt-4">{feedback}</p> : null}
 
-        {error ? (
-          <p className="mt-4 rounded-xl border border-rose-400/50 bg-rose-500/20 px-4 py-3 text-sm text-rose-100">
-            {error}
-          </p>
-        ) : null}
+        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
@@ -238,10 +230,7 @@ export default function WorkerControlPanel() {
               {workers.map((worker) => {
                 const isBusy = Boolean(busyWorkers[worker.key]);
                 return (
-                  <article
-                    className="rounded-2xl border border-white/10 bg-black/15 p-4"
-                    key={worker.key}
-                  >
+                  <article className="surface-subtle rounded-2xl p-4" key={worker.key}>
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
                         <p className="text-base font-semibold">{worker.name}</p>
@@ -256,7 +245,9 @@ export default function WorkerControlPanel() {
                       <div className="flex items-center gap-3">
                         <span
                           className={`text-sm font-semibold ${
-                            worker.running ? "text-emerald-200" : "text-slate-300"
+                            worker.running
+                              ? "text-status-success"
+                              : "text-status-neutral"
                           }`}
                         >
                           {worker.running ? "ON" : "OFF"}
@@ -264,11 +255,10 @@ export default function WorkerControlPanel() {
                         <button
                           aria-checked={worker.running}
                           aria-label={`${worker.running ? "Stop" : "Start"} ${worker.name}`}
-                          className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
-                            worker.running
-                              ? "border-emerald-300/70 bg-emerald-400/30"
-                              : "border-white/20 bg-white/10"
-                          } ${isBusy ? "cursor-not-allowed opacity-60" : ""}`}
+                          className={`toggle-switch relative inline-flex h-8 w-16 items-center rounded-full transition ${
+                            isBusy ? "cursor-not-allowed opacity-60" : ""
+                          }`}
+                          data-on={worker.running}
                           disabled={isBusy}
                           onClick={() => {
                             void toggleWorker(worker);
@@ -277,7 +267,7 @@ export default function WorkerControlPanel() {
                           type="button"
                         >
                           <span
-                            className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                            className={`toggle-thumb inline-block h-6 w-6 transform rounded-full transition-transform ${
                               worker.running ? "translate-x-8" : "translate-x-1"
                             }`}
                           />
@@ -297,9 +287,9 @@ export default function WorkerControlPanel() {
             Placeholder panel. Log ingestion will be added later.
           </p>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="surface-subtle mt-5 rounded-2xl p-4">
             {logs.length > 0 ? (
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-rose-100">
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-status-error">
                 {logs.join("\n")}
               </pre>
             ) : (

@@ -56,12 +56,12 @@ const statusLabel = (status?: string) => {
 
 const statusClass = (status?: string) => {
   const normalized = normalizeStatus(status);
-  if (normalized === "completed") return "text-emerald-200";
-  if (normalized === "failed") return "text-rose-200";
-  if (normalized === "processing") return "text-sky-200";
-  if (normalized === "queued") return "text-indigo-200";
-  if (normalized === "created") return "text-amber-200";
-  return "text-soft";
+  if (normalized === "completed") return "text-status-success";
+  if (normalized === "failed") return "text-status-error";
+  if (normalized === "processing") return "text-status-info";
+  if (normalized === "queued") return "text-status-info";
+  if (normalized === "created") return "text-status-warning";
+  return "text-status-neutral";
 };
 
 const StatusPill = ({ status }: { status?: string }) => (
@@ -242,11 +242,7 @@ export default function VideoList() {
             Create Video
           </Link>
         </div>
-        {error && (
-          <div className="mt-4 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {error}
-          </div>
-        )}
+        {error && <div className="alert alert-error mt-4">{error}</div>}
       </section>
 
       <section className="neon-panel rounded-3xl p-5">
@@ -275,7 +271,7 @@ export default function VideoList() {
             </p>
           ) : (
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-soft">
+              <thead className="table-head text-xs uppercase tracking-[0.3em]">
                 <tr>
                   <th className="py-3 pr-6">Title</th>
                   <th className="py-3 pr-6">Status</th>
@@ -306,10 +302,7 @@ export default function VideoList() {
                       : String(video.output_file_location || "").trim();
 
                   return (
-                    <tr
-                      key={video.video_id}
-                      className="border-b border-white/10 last:border-b-0"
-                    >
+                    <tr key={video.video_id} className="table-row">
                       <td className="py-4 pr-6 align-top">
                         <p className="text-base font-semibold">
                           {video.video_title || "Untitled video"}
@@ -333,14 +326,14 @@ export default function VideoList() {
                       </td>
                       <td className="py-4 align-top text-xs text-muted">
                         {video.error_reason ? (
-                          <span className="text-rose-200">
+                          <span className="text-status-error">
                             Error: {video.error_reason}
                           </span>
                         ) : normalizeStatus(video.status) === "completed" &&
                           shownFilePath ? (
                           <div className="space-y-1">
                             <a
-                              className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                              className="theme-link"
                               href={downloadPath}
                               target="_blank"
                               rel="noreferrer"
@@ -362,10 +355,10 @@ export default function VideoList() {
                       </td>
                       <td className="py-4 pr-6 align-top text-xs">
                         {isOverlayDone ? (
-                          <span className="font-semibold text-emerald-200">Done</span>
+                          <span className="font-semibold text-status-success">Done</span>
                         ) : (
                           <Link
-                            className="text-cyan-200 underline decoration-cyan-400/70 underline-offset-4 transition hover:text-cyan-100"
+                            className="theme-link"
                             href={`/create-text-overlay/${encodeURIComponent(
                               video.video_id
                             )}`}
@@ -376,7 +369,7 @@ export default function VideoList() {
                       </td>
                       <td className="py-4 align-top text-xs">
                         <button
-                          className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100 disabled:cursor-not-allowed disabled:text-rose-200/60"
+                          className="theme-link-danger disabled:cursor-not-allowed disabled:opacity-60"
                           type="button"
                           onClick={() => handleDelete(video.video_id)}
                           disabled={Boolean(deleting[video.video_id])}

@@ -52,11 +52,11 @@ const normalizeStatus = (status?: string) =>
 
 const statusClass = (status?: string) => {
   const normalized = normalizeStatus(status);
-  if (normalized === "completed") return "text-emerald-200";
-  if (normalized === "failed") return "text-rose-200";
-  if (normalized === "in_progress") return "text-sky-200";
-  if (normalized === "not_found") return "text-amber-200";
-  return "text-soft";
+  if (normalized === "completed") return "text-status-success";
+  if (normalized === "failed") return "text-status-error";
+  if (normalized === "in_progress") return "text-status-info";
+  if (normalized === "not_found") return "text-status-warning";
+  return "text-status-neutral";
 };
 
 const statusLabel = (status?: string) => {
@@ -292,11 +292,7 @@ export default function CustomVoicesLibrary() {
           </div>
         </div>
 
-        {error ? (
-          <div className="mt-4 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {error}
-          </div>
-        ) : null}
+        {error ? <div className="alert alert-error mt-4">{error}</div> : null}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">

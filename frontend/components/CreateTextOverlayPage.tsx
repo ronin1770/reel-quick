@@ -454,7 +454,7 @@ export default function CreateTextOverlayPage({
         <section className="neon-panel rounded-3xl p-5 md:p-7">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
             <div className="space-y-5">
-              <div className="rounded-2xl border border-white/15 bg-black/25 p-4">
+              <div className="surface-subtle rounded-2xl p-4">
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-soft">
                   Video
                 </p>
@@ -480,24 +480,24 @@ export default function CreateTextOverlayPage({
                 )}
               </div>
 
-              <div className="rounded-2xl border border-white/15 bg-black/25 p-3">
+              <div className="surface-subtle rounded-2xl p-3">
                 {isLoading ? (
-                  <div className="flex aspect-video items-center justify-center rounded-xl border border-white/15 bg-black/35 text-sm text-soft">
+                  <div className="surface-preview flex aspect-video items-center justify-center rounded-xl text-sm text-soft">
                     Loading video...
                   </div>
                 ) : error ? (
-                  <div className="flex aspect-video items-center justify-center rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 text-sm text-rose-200">
+                  <div className="alert alert-error flex aspect-video items-center justify-center rounded-xl px-3 text-center">
                     {error}
                   </div>
                 ) : videoDownloadUrl ? (
                   <video
-                    className="aspect-video w-full rounded-xl border border-white/10 bg-black/50"
+                    className="surface-preview aspect-video w-full rounded-xl"
                     controls
                     src={videoDownloadUrl}
                     onLoadedMetadata={onVideoMetadataLoaded}
                   />
                 ) : (
-                  <div className="flex aspect-video items-center justify-center rounded-xl border border-white/15 bg-black/35 px-3 text-center text-sm text-soft">
+                  <div className="surface-preview flex aspect-video items-center justify-center rounded-xl px-3 text-center text-sm text-soft">
                     Video preview is available when the video status is completed.
                   </div>
                 )}
@@ -528,27 +528,27 @@ export default function CreateTextOverlayPage({
               </div>
 
               {uiNote && (
-                <p className="rounded-2xl border border-white/20 bg-black/25 px-4 py-3 text-sm text-muted">
+                <p className="alert alert-note">
                   {uiNote}
                 </p>
               )}
             </div>
 
-            <aside className="rounded-2xl border border-white/15 bg-black/20 p-4">
+            <aside className="surface-subtle rounded-2xl p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold">Overlays</h3>
                 <span className="neon-chip">{overlays.length} total</span>
               </div>
               <div className="mt-4 space-y-3">
                 {overlays.length === 0 ? (
-                  <p className="rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm text-soft">
+                  <p className="surface-subtle rounded-xl px-3 py-3 text-sm text-soft">
                     No overlays added yet.
                   </p>
                 ) : (
                   overlays.map((overlay) => (
                     <article
                       key={overlay.id}
-                      className="rounded-xl border border-white/20 bg-black/25 px-3 py-3"
+                      className="surface-subtle rounded-xl px-3 py-3"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -569,7 +569,7 @@ export default function CreateTextOverlayPage({
                           </p>
                         </div>
                         <button
-                          className="text-rose-200 underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-100"
+                          className="theme-link-danger"
                           type="button"
                           onClick={() => deleteOverlay(overlay.id)}
                         >
@@ -587,7 +587,7 @@ export default function CreateTextOverlayPage({
 
       {isDialogOpen && (
         <div
-          className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-8 sm:items-center"
+          className="modal-backdrop fixed inset-0 z-30 flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Add text overlay"
@@ -685,7 +685,7 @@ export default function CreateTextOverlayPage({
                   </span>
                   <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
                     <input
-                      className="h-11 w-full cursor-pointer rounded-xl border border-white/20 bg-transparent p-1"
+                      className="color-picker-input h-11 w-full cursor-pointer rounded-xl p-1"
                       type="color"
                       value={draftTextColor}
                       onChange={(event) => onColorPickerChange(event.target.value)}
@@ -713,10 +713,10 @@ export default function CreateTextOverlayPage({
                       (preset) => (
                         <button
                           key={preset}
-                          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                          className={`position-choice rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                             draftPositionPreset === preset
-                              ? "border-cyan-300/80 bg-cyan-400/20 text-cyan-100"
-                              : "border-white/20 bg-black/20 text-soft hover:border-white/45"
+                              ? "position-choice-active"
+                              : ""
                           }`}
                           type="button"
                           onClick={() => setDraftPositionPreset(preset)}
@@ -729,13 +729,13 @@ export default function CreateTextOverlayPage({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/15 bg-black/20 p-3 lg:sticky lg:top-0">
+              <div className="surface-subtle rounded-2xl p-3 lg:sticky lg:top-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-soft">
                   Live Preview
                 </p>
                 <div
                   ref={previewFrameRef}
-                  className="relative mt-3 overflow-hidden rounded-xl border border-white/15 bg-black/60"
+                  className="surface-preview relative mt-3 overflow-hidden rounded-xl"
                   style={{ aspectRatio: previewAspectRatio }}
                 >
                   {videoDownloadUrl ? (

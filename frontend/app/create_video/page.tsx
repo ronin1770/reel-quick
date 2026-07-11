@@ -666,7 +666,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
       {(statusMessage || errorMessage) && (
         <div
           className={`neon-card rounded-2xl px-4 py-3 text-sm ${
-            errorMessage ? "text-rose-200" : "text-emerald-200"
+            errorMessage ? "text-status-error" : "text-status-success"
           }`}
         >
           {errorMessage ?? statusMessage}
@@ -689,7 +689,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                   onChange={(event) => setVideoTitle(event.target.value)}
                 />
                 {videoErrors.title && (
-                  <p className="text-xs text-rose-200">{videoErrors.title}</p>
+                  <p className="text-xs text-status-error">{videoErrors.title}</p>
                 )}
               </div>
             </div>
@@ -733,7 +733,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                   One active transition is applied at every scene boundary.
                 </p>
                 {transitionError && (
-                  <p className="text-xs text-rose-200">{transitionError}</p>
+                  <p className="text-xs text-status-error">{transitionError}</p>
                 )}
               </div>
             </div>
@@ -748,11 +748,11 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                 {duration > 0 ? `${formatTime(duration)} total` : "No duration"}
               </span>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+            <div className="surface-preview rounded-2xl p-4">
               {previewUrl ? (
                 <video
                   ref={videoRef}
-                  className="aspect-video w-full rounded-xl bg-black"
+                  className="aspect-video w-full rounded-xl"
                   controls
                   onLoadedMetadata={(event) => {
                     const nextDuration = event.currentTarget.duration || 0;
@@ -761,7 +761,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                   src={previewUrl}
                 />
               ) : (
-                <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-black/60 text-sm text-muted">
+                <div className="surface-preview flex aspect-video w-full items-center justify-center rounded-xl text-sm text-muted">
                   Select a video to preview
                 </div>
               )}
@@ -781,16 +781,16 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                     : "No clip selected"}
                 </div>
                 {activeFile?.status === "error" && activeFile.error && (
-                  <p className="text-xs text-rose-200">{activeFile.error}</p>
+                  <p className="text-xs text-status-error">{activeFile.error}</p>
                 )}
                 {partErrors.upload && (
-                  <p className="text-xs text-rose-200">{partErrors.upload}</p>
+                  <p className="text-xs text-status-error">{partErrors.upload}</p>
                 )}
               </div>
             </div>
-            <div className="relative h-10 rounded-full border border-white/10 bg-[rgba(10,6,24,0.9)]">
+            <div className="timeline-track relative h-10 rounded-full">
               <div
-                className="absolute inset-y-1 rounded-full bg-gradient-to-r from-[#ff2dc7] via-[#8b4dff] to-[#28f6ff]"
+                className="timeline-fill absolute inset-y-1 rounded-full"
                 style={timelineFill}
               />
               <div className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.4em] text-soft">
@@ -798,10 +798,10 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
               </div>
             </div>
             {partErrors.timeline && (
-              <p className="text-xs text-rose-200">{partErrors.timeline}</p>
+              <p className="text-xs text-status-error">{partErrors.timeline}</p>
             )}
             {partErrors.video && (
-              <p className="text-xs text-rose-200">{partErrors.video}</p>
+              <p className="text-xs text-status-error">{partErrors.video}</p>
             )}
           </div>
 
@@ -914,11 +914,11 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
               {files.map((item, index) => (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                  className="surface-subtle flex items-center justify-between gap-2 rounded-xl px-3 py-2"
                 >
                   <button
                     className={`text-left text-xs font-semibold ${
-                      activeIndex === index ? "text-white" : "text-muted"
+                      activeIndex === index ? "text-high" : "text-muted"
                     }`}
                     type="button"
                     onClick={() => setActiveIndex(index)}
@@ -933,7 +933,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                     </span>
                   </button>
                   <button
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-red-400/40 text-[10px] font-bold text-red-300"
+                    className="icon-button-danger flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold"
                     type="button"
                     onClick={() => handleRemoveFile(index)}
                   >
@@ -953,7 +953,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
               {parts.map((part, index) => (
                 <li
                   key={part.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                  className="surface-subtle flex items-center justify-between gap-2 rounded-xl px-3 py-2"
                 >
                   <span className="text-xs">
                     {index + 1}. {part.fileName}
@@ -962,7 +962,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                     </span>
                   </span>
                   <button
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-red-400/40 text-[10px] font-bold text-red-300"
+                    className="icon-button-danger flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold"
                     type="button"
                     onClick={() => {
                       setParts((prev) => prev.filter((item) => item.id !== part.id));

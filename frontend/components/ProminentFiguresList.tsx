@@ -153,11 +153,7 @@ export default function ProminentFiguresList() {
               <option value="all">All</option>
             </select>
           </div>
-        {error && (
-          <div className="mt-4 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {error}
-          </div>
-        )}
+        {error && <div className="alert alert-error mt-4">{error}</div>}
       </section>
 
       <section className="neon-panel rounded-3xl p-5 md:p-7">
@@ -190,7 +186,7 @@ export default function ProminentFiguresList() {
             </p>
           ) : (
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-soft">
+              <thead className="table-head text-xs uppercase tracking-[0.3em]">
                 <tr>
                   <th className="py-3 pr-6">Name</th>
                   <th className="py-3 pr-6">Country</th>
@@ -205,10 +201,7 @@ export default function ProminentFiguresList() {
                   const key =
                     code ?? figure._id ?? figure.id ?? figure.name ?? "row";
                   return (
-                    <tr
-                      key={key}
-                      className="border-b border-white/10 last:border-b-0"
-                    >
+                    <tr key={key} className="table-row">
                       <td className="py-4 pr-6 align-top">
                         <p className="text-base font-semibold">
                           {fallback(figure.name)}
@@ -226,10 +219,8 @@ export default function ProminentFiguresList() {
                       <td className="py-4 align-top text-xs">
                         {code ? (
                           <Link
-                            className="text-emerald-200 underline decoration-emerald-400/70 underline-offset-4 transition hover:text-emerald-100"
-                            href={`/prominent_figures/${encodeURIComponent(
-                              code
-                            )}`}
+                            className="theme-link"
+                            href={`/prominent_figures/${encodeURIComponent(code)}`}
                           >
                             View details
                           </Link>

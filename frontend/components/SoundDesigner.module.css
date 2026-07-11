@@ -11,8 +11,8 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(700px 260px at 0% 0%, rgba(40, 246, 255, 0.16), transparent 65%),
-    radial-gradient(700px 260px at 100% 0%, rgba(255, 45, 199, 0.16), transparent 60%);
+    radial-gradient(700px 260px at 0% 0%, var(--glow-cyan), transparent 65%),
+    radial-gradient(700px 260px at 100% 0%, var(--glow-pink), transparent 60%);
 }
 
 .header {
@@ -22,7 +22,7 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid var(--surface-border);
   padding-bottom: 1.2rem;
 }
 
@@ -38,8 +38,8 @@
   display: inline-flex;
   border-radius: 0.7rem;
   padding: 0.22rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(9, 4, 20, 0.82);
+  border: 1px solid var(--surface-border-strong);
+  background: var(--surface-faint);
 }
 
 .tabButton {
@@ -60,7 +60,7 @@
 }
 
 .tabButtonActive {
-  color: #180928;
+  color: var(--selection-text);
   background: linear-gradient(110deg, var(--neon-yellow), #ffd996 55%, var(--neon-pink));
   box-shadow: 0 8px 20px rgba(255, 193, 90, 0.35);
 }
@@ -93,13 +93,10 @@
 .groupCard,
 .sideCard,
 .presetCard {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--surface-border);
   border-radius: 0.95rem;
-  background:
-    linear-gradient(180deg, rgba(17, 9, 34, 0.95), rgba(10, 6, 24, 0.98));
-  box-shadow:
-    0 14px 36px rgba(5, 2, 14, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  background: linear-gradient(180deg, var(--panel-start), var(--panel-end));
+  box-shadow: var(--card-shadow);
 }
 
 .groupHeading,
@@ -109,7 +106,7 @@
   padding: 0.85rem 1.1rem;
   font-size: clamp(1.06rem, 1.6vw, 1.95rem);
   font-weight: 700;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .groupBody {
@@ -122,7 +119,7 @@
   align-items: center;
   gap: 0.78rem;
   padding: 0.82rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .controlRow:last-child {
@@ -143,17 +140,17 @@
 }
 
 .pillButton {
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  border: 1px solid var(--surface-border-strong);
   border-radius: 0.5rem;
   padding: 0.45rem 1.1rem;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-high);
-  background: rgba(14, 8, 30, 0.8);
+  background: var(--surface-faint);
 }
 
 .pillButtonActive {
-  color: #180928;
+  color: var(--selection-text);
   border-color: transparent;
   background: linear-gradient(110deg, #ffc870 0%, #ffd996 45%, #ff9fd7 100%);
 }
@@ -162,13 +159,13 @@
   display: inline-flex;
   align-items: center;
   min-width: 220px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--surface-border-strong);
   border-radius: 0.55rem;
   padding: 0.47rem 0.75rem;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-high);
-  background: rgba(14, 8, 30, 0.86);
+  background: var(--input-bg);
   appearance: none;
 }
 
@@ -185,8 +182,8 @@
   position: relative;
   height: 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--surface-border-strong);
+  background: linear-gradient(90deg, var(--surface-muted-strong), var(--surface-muted));
 }
 
 .scaleDivider {
@@ -195,7 +192,7 @@
   bottom: 0;
   width: 2px;
   transform: translateX(-1px);
-  background: rgba(255, 255, 255, 0.32);
+  background: var(--surface-border-strong);
 }
 
 .scaleMarker {
@@ -204,11 +201,11 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(250, 234, 255, 0.9);
-  background: radial-gradient(circle at 35% 35%, #fff7c7, #ff8ed3 60%, #36204d 100%);
+  border: 2px solid var(--bg-surface);
+  background: radial-gradient(circle at 35% 35%, #fff7c7, #ff8ed3 60%, var(--bg-surface-strong) 100%);
   transform: translate(-50%, -50%);
   box-shadow:
-    0 0 0 2px rgba(18, 9, 36, 0.9),
+    0 0 0 2px var(--bg-surface),
     0 0 14px rgba(255, 140, 213, 0.45);
 }
 
@@ -241,12 +238,12 @@
 .textareaInput,
 .textInput {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--surface-border-strong);
   border-radius: 0.55rem;
   padding: 0.62rem 0.75rem;
   font-size: 0.98rem;
   color: var(--text-high);
-  background: rgba(9, 5, 22, 0.88);
+  background: var(--input-bg);
 }
 
 .textareaInput {
@@ -265,11 +262,11 @@
   margin: 0.88rem;
   min-height: 146px;
   border-radius: 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--surface-border-strong);
   padding: 0.95rem;
   font-size: 1.05rem;
   color: var(--text-soft);
-  background: rgba(9, 5, 22, 0.88);
+  background: var(--input-bg);
 }
 
 .previewStack {
@@ -285,12 +282,12 @@
   gap: 0.72rem;
   width: 166px;
   border-radius: 0.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--surface-border-strong);
   padding: 0.5rem 0.9rem;
   font-size: 1.08rem;
   font-weight: 700;
   color: var(--text-high);
-  background: rgba(12, 7, 26, 0.9);
+  background: var(--surface-faint);
 }
 
 .previewGlyph {
@@ -308,13 +305,13 @@
 
 .generateButton {
   min-width: 66%;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--surface-border-strong);
   border-radius: 0.6rem;
   padding: 0.7rem 1rem;
   font-family: var(--font-oxanium), sans-serif;
   font-size: clamp(1.42rem, 1.8vw, 2rem);
   font-weight: 700;
-  color: #180928;
+  color: var(--selection-text);
   background: linear-gradient(110deg, #ffba59, #ffe8b3 44%, #ff88ce);
   box-shadow: 0 12px 28px rgba(255, 173, 86, 0.3);
 }
@@ -362,18 +359,18 @@
 }
 
 .presetLine + .presetLine {
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--surface-border);
 }
 
 .applyButton {
   min-width: 132px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid var(--surface-border-strong);
   border-radius: 0.55rem;
   padding: 0.6rem 1.25rem;
   font-size: clamp(1.05rem, 1.3vw, 1.25rem);
   font-weight: 700;
   color: var(--text-high);
-  background: linear-gradient(160deg, rgba(18, 10, 35, 0.9), rgba(9, 5, 21, 0.98));
+  background: linear-gradient(160deg, var(--panel-start), var(--panel-end));
 }
 
 .helperText {
@@ -386,21 +383,21 @@
 .errorMessage {
   margin: 0;
   border-radius: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--surface-border-strong);
   padding: 0.65rem 0.8rem;
   font-size: 0.92rem;
 }
 
 .statusMessage {
-  color: #d2ffe8;
-  background: rgba(22, 125, 84, 0.24);
-  border-color: rgba(102, 255, 184, 0.34);
+  color: var(--success-text);
+  background: var(--success-bg);
+  border-color: var(--success-border);
 }
 
 .errorMessage {
-  color: #ffd6e2;
-  background: rgba(139, 36, 67, 0.28);
-  border-color: rgba(255, 114, 154, 0.34);
+  color: var(--error-text);
+  background: var(--error-bg);
+  border-color: var(--error-border);
 }
 
 .responseCard {
@@ -418,12 +415,12 @@
   max-height: 420px;
   overflow: auto;
   border-radius: 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--surface-border);
   padding: 0.8rem;
   font-size: 0.82rem;
   line-height: 1.35;
-  color: #e6f0ff;
-  background: rgba(6, 5, 18, 0.88);
+  color: var(--text-high);
+  background: var(--surface-faint);
 }
 
 .tabButton:focus-visible,

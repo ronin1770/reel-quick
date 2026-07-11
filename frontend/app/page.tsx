@@ -58,7 +58,10 @@ export default function Home() {
         <div className="space-y-6">
           <div className="neon-panel rounded-3xl p-6">
             <div className="flex items-center gap-4">
-              <div className="relative h-20 w-20 overflow-hidden rounded-2xl border border-white/10 shadow-[0_0_25px_rgba(255,45,199,0.4)]">
+              <div
+                className="relative h-20 w-20 overflow-hidden rounded-2xl border shadow-[0_0_25px_var(--preview-shadow)]"
+                style={{ borderColor: "var(--surface-border)" }}
+              >
                 <Image
                   alt="Reel Quick logo"
                   fill

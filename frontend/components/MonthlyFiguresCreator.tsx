@@ -245,23 +245,15 @@ export default function MonthlyFiguresCreator() {
           </div>
         </form>
 
-        {statusMessage && (
-          <p className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-            {statusMessage}
-          </p>
-        )}
-        {submitError && (
-          <p className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            {submitError}
-          </p>
-        )}
+        {statusMessage && <p className="alert alert-success mt-4">{statusMessage}</p>}
+        {submitError && <p className="alert alert-error mt-4">{submitError}</p>}
         {jobResult && (
-          <div className="mt-4 rounded-2xl border border-white/15 bg-black/20 px-4 py-3 text-sm text-soft">
+          <div className="alert alert-note mt-4">
             <p>
-              Job ID: <span className="font-mono text-emerald-200">{jobResult.job_id}</span>
+              Job ID: <span className="font-mono text-status-success">{jobResult.job_id}</span>
             </p>
             <p className="mt-1">
-              Status: <span className="font-semibold text-emerald-100">{jobResult.status}</span>
+              Status: <span className="font-semibold text-status-success-strong">{jobResult.status}</span>
             </p>
           </div>
         )}
@@ -282,11 +274,7 @@ export default function MonthlyFiguresCreator() {
           </p>
         </div>
 
-        {recordsError && (
-          <div className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            {recordsError}
-          </div>
-        )}
+        {recordsError && <div className="alert alert-error mt-4">{recordsError}</div>}
 
         <div className="mt-6 overflow-x-auto">
           {records.length === 0 ? (
@@ -295,7 +283,7 @@ export default function MonthlyFiguresCreator() {
             </p>
           ) : (
             <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-soft">
+              <thead className="table-head text-xs uppercase tracking-[0.3em]">
                 <tr>
                   <th className="py-3 pr-6">Code</th>
                   <th className="py-3 pr-6">Name</th>
@@ -309,7 +297,7 @@ export default function MonthlyFiguresCreator() {
                 {records.map((item) => {
                   const key = item._id ?? item.id ?? item.code ?? item.name ?? "row";
                   return (
-                    <tr key={key} className="border-b border-white/10 last:border-b-0">
+                    <tr key={key} className="table-row">
                       <td className="py-4 pr-6 align-top font-mono text-xs text-soft">
                         {fallback(item.code)}
                       </td>

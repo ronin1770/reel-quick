@@ -341,11 +341,9 @@ export default function PostsPage() {
               </div>
             </div>
 
-            {copyMessage && (
-              <p className="mt-4 text-sm text-emerald-200">{copyMessage}</p>
-            )}
+            {copyMessage && <p className="mt-4 text-sm text-status-success">{copyMessage}</p>}
             {detailsError && (
-              <p className="mt-4 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <p className="alert alert-error mt-4">
                 {detailsError}
               </p>
             )}
@@ -388,9 +386,9 @@ export default function PostsPage() {
                           style={{ backgroundImage: `url(${imageSource})` }}
                         />
                       ) : (
-                        <div className="relative h-[110px] w-full overflow-hidden rounded-xl border border-white/10 bg-[#1a1230]">
-                          <div className="absolute left-1/2 top-[20%] h-11 w-11 -translate-x-1/2 rounded-full bg-white/30" />
-                          <div className="absolute bottom-0 left-1/2 h-14 w-24 -translate-x-1/2 rounded-t-[999px] bg-white/20" />
+                        <div className="placeholder-portrait relative h-[110px] w-full overflow-hidden rounded-xl">
+                          <div className="placeholder-portrait__head absolute left-1/2 top-[20%] h-11 w-11 -translate-x-1/2 rounded-full" />
+                          <div className="placeholder-portrait__body absolute bottom-0 left-1/2 h-14 w-24 -translate-x-1/2 rounded-t-[999px]" />
                         </div>
                       )}
                       <p className="mt-3 text-sm leading-relaxed text-muted">
@@ -420,7 +418,7 @@ export default function PostsPage() {
           </p>
 
           {listError && (
-            <p className="mt-3 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+            <p className="alert alert-error mt-3">
               {listError}
             </p>
           )}
@@ -434,10 +432,8 @@ export default function PostsPage() {
                 return (
                   <li key={entry._id ?? code ?? entry.name ?? `item-${index}`}>
                     <button
-                      className={`w-full rounded-xl px-3 py-2 text-left text-sm underline decoration-transparent underline-offset-4 transition ${
-                        isSelected
-                          ? "bg-white/10 text-white decoration-white/60"
-                          : "text-muted hover:bg-white/5 hover:text-white hover:decoration-white/30"
+                      className={`selection-button w-full rounded-xl px-3 py-2 text-left text-sm underline underline-offset-4 transition ${
+                        isSelected ? "selection-button-active" : ""
                       }`}
                       type="button"
                       onClick={() => onSelectPersonality(code)}
@@ -473,7 +469,7 @@ export default function PostsPage() {
                 : "Mark as posted"}
           </button>
           {actionMessage && (
-            <p className="mt-3 text-sm text-emerald-200">{actionMessage}</p>
+            <p className="mt-3 text-sm text-status-success">{actionMessage}</p>
           )}
         </aside>
       </div>
