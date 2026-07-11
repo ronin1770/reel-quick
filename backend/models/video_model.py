@@ -15,6 +15,7 @@ VIDEO_COLLECTION = "videos"
 class VideoModel:
     video_id: str
     video_title: str
+    transition_name: Optional[str] = None
 
     # NOTE: In your DB / API responses this is often a duration string like "00:00:06".
     # So keep it as Optional[str] to avoid response_model validation failures.
@@ -35,6 +36,7 @@ class VideoModel:
         return {
             "video_id": self.video_id,
             "video_title": self.video_title,
+            "transition_name": self.transition_name,
             "video_size": self.video_size,
             "video_introduction": self.video_introduction,
             "creation_time": self.creation_time,
@@ -52,6 +54,7 @@ class VideoModel:
         return cls(
             video_id=doc.get("video_id", ""),
             video_title=doc.get("video_title", ""),
+            transition_name=doc.get("transition_name"),
             video_size=doc.get("video_size"),
             video_introduction=doc.get("video_introduction"),
             creation_time=doc.get("creation_time", datetime.utcnow()),
@@ -68,6 +71,7 @@ class VideoModel:
 class VideoSchema(BaseModel):
     video_id: str
     video_title: str
+    transition_name: Optional[str] = None
     video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     creation_time: datetime = Field(default_factory=datetime.utcnow)
@@ -82,6 +86,7 @@ class VideoSchema(BaseModel):
 
 class VideoCreate(BaseModel):
     video_title: constr(strip_whitespace=True, min_length=1)
+    transition_name: Optional[constr(strip_whitespace=True, min_length=1)] = None
     video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     active: Optional[bool] = None
@@ -91,6 +96,7 @@ class VideoCreate(BaseModel):
 class VideoUpdate(BaseModel):
     # PATCH should be partial updates, so everything here should be Optional.
     video_title: Optional[constr(strip_whitespace=True, min_length=1)] = None
+    transition_name: Optional[constr(strip_whitespace=True, min_length=1)] = None
     video_size: Optional[str] = None
     video_introduction: Optional[str] = None
     active: Optional[bool] = None

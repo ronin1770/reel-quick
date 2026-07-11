@@ -32,11 +32,18 @@ from pymongo.errors import DuplicateKeyError
 
 from backend.db import get_db, init_db
 from backend.logger import get_logger
+from backend.models.available_transition import (
+    AVAILABLE_TRANSITIONS_COLLECTION,
+    AvailableTransitionCreate,
+    AvailableTransitionSchema,
+    AvailableTransitionUpdate,
+)
 from backend.objects.prompt_constants import (
     AI_TYPE_PROMPT_MAP,
     AI_TYPE_REQUIRED_FIELDS,
     AI_TYPES,
 )
+from backend.objects.available_transition_service import AvailableTransitionService
 from backend.objects.sound_prompt_creator import (
     SoundPromptCreator,
     VoiceProfile as SoundPromptVoiceProfile,
@@ -110,7 +117,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup() -> None:
-    init_db()
+    db = init_db()
+    AvailableTransitionService.ensure_seed_data(db)
     logger.info("Database initialized")
 
 
@@ -991,6 +999,23 @@ def _parse_object_id(raw_id: str) -> ObjectId:
         raise HTTPException(status_code=400, detail="Invalid _id") from exc
 
 
+def _resolve_transition_name_or_400(
+    db: Any,
+    transition_name: Optional[str],
+    *,
+    allow_default: bool,
+) -> str:
+    try:
+        return AvailableTransitionService.resolve_transition_name(
+            db,
+            transition_name,
+            allow_default=allow_default,
+            require_active=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 class CallApiRequest(BaseModel):
     ai_type: str = Field(..., min_length=1)
     input: Dict[str, Any] = Field(default_factory=dict)
@@ -1403,15 +1428,104 @@ def upload_video_file(file: UploadFile = File(...)) -> Dict[str, Any]:
     }
 
 
+@app.post("/available-transitions", response_model=AvailableTransitionSchema)
+def create_available_transition(payload: AvailableTransitionCreate) -> Dict[str, Any]:
+    db = get_db()
+    normalized_name = AvailableTransitionService.normalize_name(payload.name)
+    if not AvailableTransitionService.is_supported_name(normalized_name):
+        raise HTTPException(status_code=400, detail="transition name is not supported")
+
+    now = datetime.utcnow()
+    doc = {
+        "id": (payload.id or normalized_name).strip(),
+        "name": normalized_name,
+        "active": True if payload.active is None else payload.active,
+        "date_added": now,
+        "date_updated": now,
+    }
+
+    try:
+        db[AVAILABLE_TRANSITIONS_COLLECTION].insert_one(doc)
+    except DuplicateKeyError as exc:
+        logger.error("Duplicate transition insert: %s", exc)
+        raise HTTPException(status_code=409, detail="transition already exists") from exc
+
+    return _serialize(doc)
+
+
+@app.get("/available-transitions", response_model=List[AvailableTransitionSchema])
+def list_available_transitions(active: Optional[bool] = None) -> List[Dict[str, Any]]:
+    db = get_db()
+    docs = AvailableTransitionService.list_transitions(db, active=active)
+    return [_serialize(doc) for doc in docs]
+
+
+@app.get("/available-transitions/{transition_id}", response_model=AvailableTransitionSchema)
+def get_available_transition(transition_id: str) -> Dict[str, Any]:
+    db = get_db()
+    doc = db[AVAILABLE_TRANSITIONS_COLLECTION].find_one({"id": transition_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="available transition not found")
+    return _serialize(doc)
+
+
+@app.patch("/available-transitions/{transition_id}", response_model=AvailableTransitionSchema)
+def update_available_transition(
+    transition_id: str, payload: AvailableTransitionUpdate
+) -> Dict[str, Any]:
+    db = get_db()
+    existing = db[AVAILABLE_TRANSITIONS_COLLECTION].find_one({"id": transition_id})
+    if existing is None:
+        raise HTTPException(status_code=404, detail="available transition not found")
+
+    update = payload.dict(exclude_unset=True)
+    if "name" in update:
+        normalized_name = AvailableTransitionService.normalize_name(update["name"])
+        if not AvailableTransitionService.is_supported_name(normalized_name):
+            raise HTTPException(status_code=400, detail="transition name is not supported")
+        update["name"] = normalized_name
+    update["date_updated"] = datetime.utcnow()
+
+    try:
+        doc = db[AVAILABLE_TRANSITIONS_COLLECTION].find_one_and_update(
+            {"id": transition_id},
+            {"$set": update},
+            return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError as exc:
+        logger.error("Duplicate transition update: %s", exc)
+        raise HTTPException(status_code=409, detail="transition already exists") from exc
+
+    if doc is None:
+        raise HTTPException(status_code=404, detail="available transition not found")
+
+    return _serialize(doc)
+
+
+@app.delete("/available-transitions/{transition_id}", response_model=AvailableTransitionSchema)
+def delete_available_transition(transition_id: str) -> Dict[str, Any]:
+    db = get_db()
+    doc = db[AVAILABLE_TRANSITIONS_COLLECTION].find_one_and_delete({"id": transition_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="available transition not found")
+    return _serialize(doc)
+
+
 @app.post("/videos", response_model=VideoSchema)
 def create_video(payload: VideoCreate) -> Dict[str, Any]:
     db = get_db()
     now = datetime.utcnow()
     video_id = uuid4().hex
+    transition_name = _resolve_transition_name_or_400(
+        db,
+        payload.transition_name,
+        allow_default=True,
+    )
 
     doc = {
         "video_id": video_id,
         "video_title": payload.video_title,
+        "transition_name": transition_name,
         "video_size": payload.video_size,
         "video_introduction": payload.video_introduction,
         "creation_time": now,
@@ -1758,6 +1872,12 @@ def download_video(video_id: str) -> FileResponse:
 def update_video(video_id: str, payload: VideoUpdate) -> Dict[str, Any]:
     db = get_db()
     update = payload.dict(exclude_unset=True)
+    if "transition_name" in update:
+        update["transition_name"] = _resolve_transition_name_or_400(
+            db,
+            update.get("transition_name"),
+            allow_default=True,
+        )
     update["modification_time"] = datetime.utcnow()
 
     doc = db.videos.find_one_and_update(
@@ -1808,6 +1928,21 @@ async def enqueue_video(video_id: str) -> JSONResponse:
     video = db.videos.find_one({"video_id": video_id})
     if video is None:
         raise HTTPException(status_code=404, detail="video not found")
+    resolved_transition_name = _resolve_transition_name_or_400(
+        db,
+        video.get("transition_name"),
+        allow_default=True,
+    )
+    if video.get("transition_name") != resolved_transition_name:
+        db.videos.update_one(
+            {"video_id": video_id},
+            {
+                "$set": {
+                    "transition_name": resolved_transition_name,
+                    "modification_time": datetime.utcnow(),
+                }
+            },
+        )
 
     try:
         redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))

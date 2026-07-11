@@ -201,6 +201,15 @@ sudo apt install -y python3 python3-venv python3-pip ffmpeg redis-server
 
 MongoDB server is required for the `instagram_reel_creator` database.
 
+If you want scene transitions, your local `ffmpeg` must support the `xfade` filter.
+Verify it with:
+
+```bash
+ffmpeg -hide_banner -h filter=xfade
+```
+
+If the command prints the `xfade` filter and transition options, transition stitching is available on that machine. Supported transition names depend on the local `ffmpeg` build.
+
 ## Environment
 
 Sample environment file exists in the repo's root location. Please rename **sample.env** to **.env**. 
@@ -236,11 +245,17 @@ OUTPUT_FILES_LOCATION=./outputs
 ## Key prerequisites (system + services)
 
 - **Python 3.10+**
-- **FFmpeg** (must include `ffprobe` and support `libx264`)
+- **FFmpeg** (must include `ffprobe`, support `libx264`, and support `xfade` for scene transitions)
 - **MongoDB** server running (default `mongodb://localhost:27017`)
 - **Redis** server running (default `redis://localhost:6379/0`)
 - Sufficient disk space for uploads, temp segments, and output files.
 - Environment variables (see below) set in `.env`.
+
+Check transition support locally with:
+
+```bash
+ffmpeg -hide_banner -h filter=xfade
+```
 
 ### Required/expected environment variables
 

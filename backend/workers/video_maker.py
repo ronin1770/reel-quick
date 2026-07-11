@@ -72,7 +72,9 @@ def _format_hms(total_seconds: float) -> str:
 
 
 def _build_processing_payload(
-    parts: List[Dict[str, Any]], output_name: str
+    parts: List[Dict[str, Any]],
+    output_name: str,
+    transition_name: str | None,
 ) -> Dict[str, Any]:
     clips: List[Dict[str, Any]] = []
     for part in parts:
@@ -87,6 +89,8 @@ def _build_processing_payload(
     return {
         "clips": clips,
         "output_file_name": output_name,
+        "transition_name": transition_name,
+        "transition_duration": 1.0,
     }
 
 
@@ -160,7 +164,11 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
         },
     )
 
-    payload = _build_processing_payload(parts, output_file_name)
+    payload = _build_processing_payload(
+        parts,
+        output_file_name,
+        str(video.get("transition_name") or "").strip() or None,
+    )
 
     temp_json_path = None
     try:
