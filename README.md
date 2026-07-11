@@ -107,6 +107,13 @@ nvm install lts/krypton
 
 ## 🚧 Current Status
 
+*Update - Jul 11 2026*
+- **Added Video Transition Effects**
+- Added sample transition input clips: [clip-1.mp4](docs/clip-1.mp4), [clip-2.mp4](docs/clip-2.mp4)
+- Added sample output video with circle transition: [testing_transitions.mp4](docs/testing_transitions.mp4)
+- **Added Theme Selector**
+- Added theme selector demo output video: [theme_selector.mp4](docs/theme_selector.mp4)
+
 *Update - Apr 10 2026*
 - Finished frontend component for adding video text overlay
 - Finished the backend component for adding video text overlay
