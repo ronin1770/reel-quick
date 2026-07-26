@@ -15,6 +15,10 @@ from dotenv import find_dotenv, load_dotenv
 
 from backend.db import get_db
 from backend.logger import get_logger
+from backend.models.video_model import (
+    DEFAULT_TRANSITION_DURATION,
+    normalize_transition_duration,
+)
 from backend.objects.video_automation import VideoAutomation
 from backend.workers.queue_names import VIDEO_QUEUE_NAME
 
@@ -75,6 +79,7 @@ def _build_processing_payload(
     parts: List[Dict[str, Any]],
     output_name: str,
     transition_name: str | None,
+    transition_duration: Any,
 ) -> Dict[str, Any]:
     clips: List[Dict[str, Any]] = []
     for part in parts:
@@ -90,7 +95,10 @@ def _build_processing_payload(
         "clips": clips,
         "output_file_name": output_name,
         "transition_name": transition_name,
-        "transition_duration": 1.0,
+        "transition_duration": normalize_transition_duration(
+            transition_duration,
+            default=DEFAULT_TRANSITION_DURATION,
+        ),
     }
 
 
@@ -168,6 +176,7 @@ async def process_video(ctx: Dict[str, Any], video_id: str) -> bool:
         parts,
         output_file_name,
         str(video.get("transition_name") or "").strip() or None,
+        video.get("transition_duration"),
     )
 
     temp_json_path = None

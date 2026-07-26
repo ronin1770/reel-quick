@@ -41,6 +41,10 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const MAX_UPLOAD_CONCURRENCY = 2;
 const UPLOAD_REQUEST_TIMEOUT_MS = 180000;
+const DEFAULT_TRANSITION_DURATION = 0.5;
+const MIN_TRANSITION_DURATION = 0;
+const MAX_TRANSITION_DURATION = 4;
+const TRANSITION_DURATION_STEP = 0.5;
 
 const formatTime = (value: number) => {
   if (!Number.isFinite(value)) return "0:00";
@@ -58,6 +62,24 @@ const formatHms = (value: number) => {
   return `${hours.toString().padStart(2, "0")}:${minutes
     .toString()
     .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const formatTransitionDuration = (value: number) => `${value.toFixed(1)}s`;
+
+const getTransitionDurationError = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return "Transition duration is required.";
+  }
+  if (value < MIN_TRANSITION_DURATION || value > MAX_TRANSITION_DURATION) {
+    return "Transition duration must be between 0.0s and 4.0s.";
+  }
+
+  const stepCount = value / TRANSITION_DURATION_STEP;
+  if (Math.abs(stepCount - Math.round(stepCount)) > 1e-9) {
+    return "Transition duration must use 0.5-second increments.";
+  }
+
+  return null;
 };
 
 const buildFileId = (file: File) =>
@@ -111,7 +133,13 @@ export default function CreateVideoPage() {
   }>({});
   const [transitionOptions, setTransitionOptions] = useState<TransitionOption[]>([]);
   const [selectedTransition, setSelectedTransition] = useState("fade");
+  const [transitionDuration, setTransitionDuration] = useState(
+    DEFAULT_TRANSITION_DURATION
+  );
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [transitionDurationError, setTransitionDurationError] = useState<string | null>(
+    null
+  );
   const [isLoadingTransitions, setIsLoadingTransitions] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -491,6 +519,7 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
     setVideoErrors({});
     setErrorMessage(null);
     setStatusMessage(null);
+    setTransitionDurationError(null);
 
     const trimmedTitle = videoTitle.trim();
     if (!trimmedTitle) {
@@ -498,7 +527,15 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
       return;
     }
 
-    if (!selectedTransition) {
+    const nextTransitionDurationError = getTransitionDurationError(
+      transitionDuration
+    );
+    if (nextTransitionDurationError) {
+      setTransitionDurationError(nextTransitionDurationError);
+      return;
+    }
+
+    if (transitionDuration > 0 && !selectedTransition) {
       setErrorMessage("Select an active transition before creating the video.");
       return;
     }
@@ -511,9 +548,12 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
       if (!nextVideoId) {
         const payload: Record<string, unknown> = {
           video_title: trimmedTitle,
-          transition_name: selectedTransition,
+          transition_duration: transitionDuration,
           active: true,
         };
+        if (selectedTransition) {
+          payload.transition_name = selectedTransition;
+        }
         const trimmedDescription = videoDescription.trim();
         if (trimmedDescription) {
           payload.video_introduction = trimmedDescription;
@@ -559,11 +599,14 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
 
       router.push("/videos");
     } catch (error) {
-      setErrorMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "Unable to create or queue video."
-      );
+          : "Unable to create or queue video.";
+      if (message.toLowerCase().includes("transition_duration")) {
+        setTransitionDurationError(message);
+      }
+      setErrorMessage(message);
     } finally {
       setIsCreatingVideo(false);
     }
@@ -734,6 +777,40 @@ const addPartEntry = useCallback((file: VideoFile, start: number, end: number) =
                 </p>
                 {transitionError && (
                   <p className="text-xs text-status-error">{transitionError}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[180px_1fr] items-start">
+              <label className="pt-2 text-sm font-semibold text-soft">
+                Transition Duration
+              </label>
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <input
+                    className="neon-range w-full"
+                    max={MAX_TRANSITION_DURATION}
+                    min={MIN_TRANSITION_DURATION}
+                    onChange={(event) => {
+                      setTransitionDuration(Number(event.target.value));
+                      setTransitionDurationError(null);
+                    }}
+                    step={TRANSITION_DURATION_STEP}
+                    type="range"
+                    value={transitionDuration}
+                  />
+                  <span className="neon-badge min-w-[72px] justify-center text-center">
+                    {formatTransitionDuration(transitionDuration)}
+                  </span>
+                </div>
+                <p className="text-xs text-soft">
+                  Use 0.0s to disable transitions. Positive values apply the selected
+                  effect between every scene.
+                </p>
+                {transitionDurationError && (
+                  <p className="text-xs text-status-error">
+                    {transitionDurationError}
+                  </p>
                 )}
               </div>
             </div>
