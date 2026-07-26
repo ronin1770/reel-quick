@@ -13,6 +13,10 @@ from moviepy import *
 import json,os,shutil,subprocess,tempfile
 from config import *
 from backend.logger import get_logger
+from backend.models.video_model import (
+    DEFAULT_TRANSITION_DURATION,
+    normalize_transition_duration,
+)
 
 
 class VideoAutomation:
@@ -146,7 +150,7 @@ class VideoAutomation:
                 shutil.copyfile(temp_files[0], output_path)
                 return True
 
-            if transition_name:
+            if transition_name and transition_duration > 0:
                 self._validate_transition_duration(clip_durations, transition_duration)
                 return self._render_transitioned_output(
                     temp_files=temp_files,
@@ -197,11 +201,10 @@ class VideoAutomation:
         return value or None
 
     def _transition_duration(self):
-        raw_value = self.processing_data.get("transition_duration", 1.0)
-        duration = float(raw_value)
-        if duration <= 0:
-            raise ValueError("transition_duration must be greater than 0")
-        return duration
+        return normalize_transition_duration(
+            self.processing_data.get("transition_duration"),
+            default=DEFAULT_TRANSITION_DURATION,
+        )
 
     def _validate_transition_duration(self, clip_durations, transition_duration):
         for index, duration in enumerate(clip_durations, start=1):

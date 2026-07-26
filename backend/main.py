@@ -71,7 +71,13 @@ from backend.models.text_overlay_jobs import (
     TextOverlayEnqueueResponse,
     TextOverlayJobModel,
 )
-from backend.models.video_model import VideoCreate, VideoSchema, VideoUpdate
+from backend.models.video_model import (
+    DEFAULT_TRANSITION_DURATION,
+    VideoCreate,
+    VideoSchema,
+    VideoUpdate,
+    normalize_transition_duration,
+)
 from backend.models.voice_job_status import (
     VOICE_CLONE_JOB_COLLECTION,
     VoiceCloneJobModel,
@@ -1016,6 +1022,20 @@ def _resolve_transition_name_or_400(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _resolve_transition_duration_or_400(
+    transition_duration: Any,
+    *,
+    default: float = DEFAULT_TRANSITION_DURATION,
+) -> float:
+    try:
+        return normalize_transition_duration(
+            transition_duration,
+            default=default,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 class CallApiRequest(BaseModel):
     ai_type: str = Field(..., min_length=1)
     input: Dict[str, Any] = Field(default_factory=dict)
@@ -1133,6 +1153,29 @@ def _validate_times(start_time: str, end_time: str, duration_seconds: float) -> 
         raise HTTPException(status_code=400, detail="end_time exceeds file duration")
     if end_seconds <= start_seconds:
         raise HTTPException(status_code=400, detail="end_time must be > start_time")
+
+
+def _validate_transition_duration_against_parts(
+    parts: List[Dict[str, Any]],
+    transition_duration: float,
+) -> None:
+    if transition_duration <= 0:
+        return
+
+    for index, part in enumerate(parts, start=1):
+        start_seconds = _parse_hms(str(part.get("start_time", "")))
+        end_seconds = _parse_hms(str(part.get("end_time", "")))
+        clip_duration = end_seconds - start_seconds
+        if clip_duration <= transition_duration:
+            part_number = part.get("part_number", index)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "part "
+                    f"{part_number} must be longer than transition_duration "
+                    f"({transition_duration:.1f}s)"
+                ),
+            )
 
 
 def _require_video_for_text_overlay(db: Any, video_id: str) -> Dict[str, Any]:
@@ -1521,11 +1564,15 @@ def create_video(payload: VideoCreate) -> Dict[str, Any]:
         payload.transition_name,
         allow_default=True,
     )
+    transition_duration = _resolve_transition_duration_or_400(
+        payload.transition_duration
+    )
 
     doc = {
         "video_id": video_id,
         "video_title": payload.video_title,
         "transition_name": transition_name,
+        "transition_duration": transition_duration,
         "video_size": payload.video_size,
         "video_introduction": payload.video_introduction,
         "creation_time": now,
@@ -1878,6 +1925,10 @@ def update_video(video_id: str, payload: VideoUpdate) -> Dict[str, Any]:
             update.get("transition_name"),
             allow_default=True,
         )
+    if "transition_duration" in update:
+        update["transition_duration"] = _resolve_transition_duration_or_400(
+            update.get("transition_duration")
+        )
     update["modification_time"] = datetime.utcnow()
 
     doc = db.videos.find_one_and_update(
@@ -1933,16 +1984,36 @@ async def enqueue_video(video_id: str) -> JSONResponse:
         video.get("transition_name"),
         allow_default=True,
     )
+    resolved_transition_duration = _resolve_transition_duration_or_400(
+        video.get("transition_duration")
+    )
+
+    update_fields: Dict[str, Any] = {}
     if video.get("transition_name") != resolved_transition_name:
+        update_fields["transition_name"] = resolved_transition_name
+    if video.get("transition_duration") != resolved_transition_duration:
+        update_fields["transition_duration"] = resolved_transition_duration
+    if update_fields:
         db.videos.update_one(
             {"video_id": video_id},
             {
                 "$set": {
-                    "transition_name": resolved_transition_name,
+                    **update_fields,
                     "modification_time": datetime.utcnow(),
                 }
             },
         )
+
+    parts = list(
+        db.video_parts.find(
+            {"video_id": video_id},
+            {"start_time": 1, "end_time": 1, "part_number": 1},
+        ).sort("part_number", 1)
+    )
+    _validate_transition_duration_against_parts(
+        parts,
+        resolved_transition_duration,
+    )
 
     try:
         redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))
