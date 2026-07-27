@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 import json
 import os
@@ -78,6 +78,21 @@ from backend.models.video_model import (
     VideoUpdate,
     normalize_transition_duration,
 )
+from backend.models.wizard_step_1 import (
+    DEFAULT_TREND_LIMIT,
+    DEFAULT_WIZARD_LANGUAGE,
+    DEFAULT_WIZARD_PLATFORM,
+    MIN_TREND_COUNT,
+    WIZARD_STATUS_COMPLETED,
+    WIZARD_STATUS_DRAFT,
+    WIZARD_STATUS_FAILED,
+    WIZARD_STATUS_RUNNING,
+    WIZARD_STEP_1_COLLECTION,
+    Step1WizardCreate,
+    Step1WizardModel,
+    Step1WizardResponse,
+    _now_str as _wizard_now_str,
+)
 from backend.models.voice_job_status import (
     VOICE_CLONE_JOB_COLLECTION,
     VoiceCloneJobModel,
@@ -101,6 +116,10 @@ from backend.workers.queue_names import (
     VIDEO_QUEUE_NAME,
     VOICE_CLONE_QUEUE_NAME,
     queue_health_key,
+)
+from backend.wizard.step_1_idea import (
+    Step1IdeaService,
+    Step1ResearchValidationError,
 )
 
 app = FastAPI()
@@ -1003,6 +1022,38 @@ def _parse_object_id(raw_id: str) -> ObjectId:
         return ObjectId(raw_id)
     except (InvalidId, TypeError) as exc:
         raise HTTPException(status_code=400, detail="Invalid _id") from exc
+
+
+def _parse_iso_date_or_400(raw_value: str, field_name: str) -> str:
+    try:
+        parsed = datetime.strptime(raw_value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} must be in YYYY-MM-DD format",
+        ) from exc
+
+    if parsed > date.today():
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} cannot be in the future",
+        )
+
+    return parsed.isoformat()
+
+
+def _validate_wizard_dates_or_400(start_date: str, end_date: str) -> Dict[str, str]:
+    normalized_start = _parse_iso_date_or_400(start_date, "start_date")
+    normalized_end = _parse_iso_date_or_400(end_date, "end_date")
+    if normalized_start > normalized_end:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be less than or equal to end_date",
+        )
+    return {
+        "start_date": normalized_start,
+        "end_date": normalized_end,
+    }
 
 
 def _resolve_transition_name_or_400(
@@ -2545,6 +2596,161 @@ async def call_api(payload: CallApiRequest) -> JSONResponse:
             "status": "queued",
         },
     )
+
+
+@app.post("/wizards", response_model=Step1WizardResponse)
+def create_wizard(payload: Step1WizardCreate) -> Dict[str, Any]:
+    db = get_db()
+    research_period = _validate_wizard_dates_or_400(
+        payload.start_date,
+        payload.end_date,
+    )
+    language = payload.language or DEFAULT_WIZARD_LANGUAGE
+    if language != DEFAULT_WIZARD_LANGUAGE:
+        raise HTTPException(
+            status_code=400,
+            detail="Only English is supported for Step 1 at this time",
+        )
+
+    trend_limit = (
+        payload.trend_limit
+        if payload.trend_limit is not None
+        else DEFAULT_TREND_LIMIT
+    )
+    if trend_limit < 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"trend_limit must be greater than or equal to {MIN_TREND_COUNT}",
+        )
+    if trend_limit < MIN_TREND_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"trend_limit must be greater than or equal to {MIN_TREND_COUNT}",
+        )
+
+    model = Step1WizardModel(
+        niche=payload.niche,
+        research_period=research_period,
+        language=language,
+        platforms_analyzed=[DEFAULT_WIZARD_PLATFORM],
+        trend_limit=trend_limit,
+        status=WIZARD_STATUS_DRAFT,
+        research_result_json=None,
+        debug_raw_response=None,
+        debug_validation_errors=None,
+    )
+    doc = model.to_bson()
+    result = db[WIZARD_STEP_1_COLLECTION].insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return _serialize_with_id(doc)
+
+
+@app.post("/wizards/{wizard_id}/step-1", response_model=Step1WizardResponse)
+def run_wizard_step_1(wizard_id: str) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(wizard_id)
+    now = _wizard_now_str()
+    doc = db[WIZARD_STEP_1_COLLECTION].find_one_and_update(
+        {"_id": oid},
+        {
+            "$set": {
+                "status": WIZARD_STATUS_RUNNING,
+                "updated_at": now,
+                "completed_at": None,
+                "failed_at": None,
+                "research_result_json": None,
+                "debug_raw_response": None,
+                "debug_validation_errors": None,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="wizard not found")
+
+    try:
+        service = Step1IdeaService(model="gpt-4o")
+        research_result = service.run(doc)
+    except Step1ResearchValidationError as exc:
+        failure_time = _wizard_now_str()
+        db[WIZARD_STEP_1_COLLECTION].find_one_and_update(
+            {"_id": oid},
+            {
+                "$set": {
+                    "status": WIZARD_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": exc.raw_response,
+                    "debug_validation_errors": exc.errors,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Step 1 research validation failed",
+                "errors": exc.errors,
+            },
+        ) from exc
+    except Exception as exc:
+        failure_time = _wizard_now_str()
+        error_payload = [
+            {
+                "loc": ["service"],
+                "msg": str(exc),
+                "type": "runtime_error.step_1",
+            }
+        ]
+        db[WIZARD_STEP_1_COLLECTION].find_one_and_update(
+            {"_id": oid},
+            {
+                "$set": {
+                    "status": WIZARD_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": None,
+                    "debug_validation_errors": error_payload,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Step 1 research generation failed",
+        ) from exc
+
+    completed_time = _wizard_now_str()
+    saved = db[WIZARD_STEP_1_COLLECTION].find_one_and_update(
+        {"_id": oid},
+        {
+            "$set": {
+                "status": WIZARD_STATUS_COMPLETED,
+                "updated_at": completed_time,
+                "completed_at": completed_time,
+                "failed_at": None,
+                "research_result_json": research_result,
+                "debug_raw_response": None,
+                "debug_validation_errors": None,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if saved is None:
+        raise HTTPException(status_code=404, detail="wizard not found")
+    return _serialize_with_id(saved)
+
+
+@app.get("/wizards/{wizard_id}", response_model=Step1WizardResponse)
+def get_wizard(wizard_id: str) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(wizard_id)
+    doc = db[WIZARD_STEP_1_COLLECTION].find_one({"_id": oid})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="wizard not found")
+    return _serialize_with_id(doc)
 
 
 @app.post("/monthly-figures", response_model=RawPostsDataResponse)
