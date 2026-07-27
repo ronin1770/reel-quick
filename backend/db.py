@@ -44,6 +44,7 @@ def init_db() -> Database:
         "voice_clone_job",
         "sound_design_prompt",
         "custom_voices",
+        "wizard_step_1",
     ):
         if name not in existing:
             db.create_collection(name)
@@ -58,6 +59,7 @@ def init_db() -> Database:
     db.voice_clone_job.create_index("job_id", unique=True)
     db.sound_design_prompt.create_index("sound_design_id", unique=True)
     db.custom_voices.create_index("request_id", unique=True)
+    db.wizard_step_1.create_index("status")
     return db
 
 
