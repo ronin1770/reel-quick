@@ -1,0 +1,188 @@
+{
+   "wizard_id":"6a6634287bef448b20420ad5",
+   "query":{
+      "niche":"motivation videos",
+      "trend_name":"Micro-Motivations",
+      "video_title":"The Power of Starting Again",
+      "video_concept":"A motivational Reel about rebuilding after failure with sunrise, solitude, training, and comeback visuals.",
+      "maximum_results":5
+   },
+   "search_terms":[
+      "sunrise runner solitude",
+      "beach sunrise running",
+      "morning jogging determination",
+      "early morning training",
+      "sunrise comeback fitness"
+   ],
+   "videos":[
+      {
+         "result_id":"1",
+         "title":"Runner Enjoys Serene Beach Sunrise",
+         "description":"A lone runner jogs along a tranquil beach at sunrise, leaving footprints behind.",
+         "source":"Pexels",
+         "page_url":"https://www.pexels.com/video/runner-enjoys-serene-beach-sunrise-37268736/",
+         "preview_url":null,
+         "creator_name":"HUỲNH DŨNG",
+         "duration_seconds":null,
+         "orientation":"horizontal",
+         "resolution":null,
+         "search_term":"beach sunrise running",
+         "visual_tags":[
+            "sunrise",
+            "runner",
+            "beach",
+            "solitude",
+            "comeback",
+            "fitness",
+            "morning"
+         ],
+         "recommended_usage":"Opening sequence representing a fresh start after failure.",
+         "license":{
+            "license_name":"Pexels License",
+            "license_url":null,
+            "commercial_use_allowed":true,
+            "modification_allowed":true,
+            "attribution_required":false,
+            "license_verified":true,
+            "verification_notes":"Observed on the public Pexels video page marked 'Free to use'."
+         },
+         "relevance_score":99,
+         "selection_notes":"Excellent match for sunrise, solitude and rebuilding theme."
+      },
+      {
+         "result_id":"2",
+         "title":"Back View of a Man Running on the Beach at Sunrise",
+         "description":"Man jogging on a sandy beach during sunrise with an ocean backdrop.",
+         "source":"Pexels",
+         "page_url":"https://www.pexels.com/video/back-view-of-a-man-running-on-the-beach-at-sunrise-14458142/",
+         "preview_url":null,
+         "creator_name":"Matthias Groeneveld",
+         "duration_seconds":null,
+         "orientation":"horizontal",
+         "resolution":null,
+         "search_term":"sunrise runner solitude",
+         "visual_tags":[
+            "runner",
+            "sunrise",
+            "training",
+            "beach",
+            "determination",
+            "motivation"
+         ],
+         "recommended_usage":"Use during the 'keep moving forward' portion of the Reel.",
+         "license":{
+            "license_name":"Pexels License",
+            "license_url":null,
+            "commercial_use_allowed":true,
+            "modification_allowed":true,
+            "attribution_required":false,
+            "license_verified":true,
+            "verification_notes":"Observed on the public Pexels video page marked 'Free to use'."
+         },
+         "relevance_score":97,
+         "selection_notes":"Strong visual metaphor for persistence and comeback."
+      },
+      {
+         "result_id":"3",
+         "title":"A Young Woman Exhales and Starts Jogging in the Early Hours of the Morning with Determination",
+         "description":"A woman begins an early morning run as daylight breaks.",
+         "source":"Mixkit",
+         "page_url":"https://mixkit.co/free-stock-video/a-young-woman-exhales-and-starts-jogging-in-the-early-52125/",
+         "preview_url":null,
+         "creator_name":null,
+         "duration_seconds":22.0,
+         "orientation":"horizontal",
+         "resolution":"1920x1080",
+         "search_term":"early morning training",
+         "visual_tags":[
+            "jogging",
+            "determination",
+            "morning",
+            "training",
+            "fresh start"
+         ],
+         "recommended_usage":"Transition into the rebuilding and discipline section.",
+         "license":{
+            "license_name":"Mixkit Stock Video Free License",
+            "license_url":null,
+            "commercial_use_allowed":true,
+            "modification_allowed":true,
+            "attribution_required":false,
+            "license_verified":true,
+            "verification_notes":"Observed on the public Mixkit page stating commercial or personal use under the Mixkit Stock Video Free License."
+         },
+         "relevance_score":95,
+         "selection_notes":"Directly communicates beginning again with determination."
+      },
+      {
+         "result_id":"4",
+         "title":"A Young Woman Jogging in the Early Morning at the Park with Intense Focus",
+         "description":"Focused morning jogging illuminated by the rising sun.",
+         "source":"Mixkit",
+         "page_url":"https://mixkit.co/free-stock-video/a-young-woman-jogging-in-the-early-morning-at-the-52139/",
+         "preview_url":null,
+         "creator_name":null,
+         "duration_seconds":6.0,
+         "orientation":"horizontal",
+         "resolution":"1920x1080",
+         "search_term":"morning jogging determination",
+         "visual_tags":[
+            "focus",
+            "training",
+            "park",
+            "sunrise",
+            "discipline"
+         ],
+         "recommended_usage":"Short motivational cut emphasizing consistency.",
+         "license":{
+            "license_name":"Mixkit Stock Video Free License",
+            "license_url":null,
+            "commercial_use_allowed":true,
+            "modification_allowed":true,
+            "attribution_required":false,
+            "license_verified":true,
+            "verification_notes":"Observed on the public Mixkit page stating commercial or personal use under the Mixkit Stock Video Free License."
+         },
+         "relevance_score":93,
+         "selection_notes":"Good B-roll for disciplined daily habits."
+      },
+      {
+         "result_id":"5",
+         "title":"Tree, Sunrise, Birds",
+         "description":"Peaceful sunrise landscape with birds and natural scenery.",
+         "source":"Pixabay",
+         "page_url":"https://pixabay.com/videos/tree-sunrise-birds-mountain-sun-83798/",
+         "preview_url":null,
+         "creator_name":"ChristianBodhi",
+         "duration_seconds":null,
+         "orientation":"horizontal",
+         "resolution":"1920x1080",
+         "search_term":"sunrise comeback fitness",
+         "visual_tags":[
+            "sunrise",
+            "nature",
+            "hope",
+            "calm",
+            "new beginning"
+         ],
+         "recommended_usage":"Closing shot to symbolize hope and renewal.",
+         "license":{
+            "license_name":"Pixabay Content License",
+            "license_url":null,
+            "commercial_use_allowed":true,
+            "modification_allowed":true,
+            "attribution_required":false,
+            "license_verified":true,
+            "verification_notes":"Observed on the public Pixabay video page indicating use under the Pixabay Content License."
+         },
+         "relevance_score":90,
+         "selection_notes":"Excellent ending visual reinforcing the theme of starting again."
+      }
+   ],
+   "warnings":[
+      "No sufficiently relevant verified public video pages were found during this search from Coverr, Videvo, or Wikimedia Commons.",
+      "Preview URLs were not consistently exposed on the verified public pages and are therefore omitted.",
+      "Some page metadata such as duration and resolution was unavailable on the observed Pexels pages."
+   ],
+   "generated_at":"2026-07-28T11:00:00Z"
+}

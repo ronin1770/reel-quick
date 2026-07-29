@@ -93,6 +93,17 @@ from backend.models.wizard_step_1 import (
     Step1WizardResponse,
     _now_str as _wizard_now_str,
 )
+from backend.models.wizard_step_2 import (
+    DEFAULT_STEP_2_MAX_RESULTS,
+    MIN_STEP_2_MAX_RESULTS,
+    STEP_2_COLLECTION,
+    STEP_2_STATUS_COMPLETED,
+    STEP_2_STATUS_COMPLETED_WITH_WARNINGS,
+    STEP_2_STATUS_FAILED,
+    STEP_2_STATUS_PROCESSING,
+    Step2WizardCreate,
+    Step2WizardResponse,
+)
 from backend.models.voice_job_status import (
     VOICE_CLONE_JOB_COLLECTION,
     VoiceCloneJobModel,
@@ -120,6 +131,10 @@ from backend.workers.queue_names import (
 from backend.wizard.step_1_idea import (
     Step1IdeaService,
     Step1ResearchValidationError,
+)
+from backend.wizard.step_2_video_search import (
+    Step2VideoSearchService,
+    Step2VideoSearchValidationError,
 )
 
 app = FastAPI()
@@ -1054,6 +1069,26 @@ def _validate_wizard_dates_or_400(start_date: str, end_date: str) -> Dict[str, s
         "start_date": normalized_start,
         "end_date": normalized_end,
     }
+
+
+def _validate_step_2_max_results_or_400(maximum_results: Optional[int]) -> int:
+    normalized = (
+        maximum_results
+        if maximum_results is not None
+        else DEFAULT_STEP_2_MAX_RESULTS
+    )
+    if (
+        normalized < MIN_STEP_2_MAX_RESULTS
+        or normalized > DEFAULT_STEP_2_MAX_RESULTS
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "maximum_results must be between "
+                f"{MIN_STEP_2_MAX_RESULTS} and {DEFAULT_STEP_2_MAX_RESULTS}"
+            ),
+        )
+    return normalized
 
 
 def _resolve_transition_name_or_400(
@@ -2750,6 +2785,163 @@ def get_wizard(wizard_id: str) -> Dict[str, Any]:
     doc = db[WIZARD_STEP_1_COLLECTION].find_one({"_id": oid})
     if doc is None:
         raise HTTPException(status_code=404, detail="wizard not found")
+    return _serialize_with_id(doc)
+
+
+@app.post("/wizards/{wizard_id}/step-2", response_model=Step2WizardResponse)
+def run_wizard_step_2(
+    wizard_id: str,
+    payload: Step2WizardCreate,
+) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(wizard_id)
+    wizard_doc = db[WIZARD_STEP_1_COLLECTION].find_one({"_id": oid})
+    if wizard_doc is None:
+        raise HTTPException(status_code=404, detail="wizard not found")
+    if (
+        wizard_doc.get("status") != WIZARD_STATUS_COMPLETED
+        or not wizard_doc.get("research_result_json")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Step 1 must be completed before Step 2 can run",
+        )
+
+    trend_names = [
+        item.get("trend_name", "")
+        for item in wizard_doc.get("research_result_json", {}).get("trends", [])
+        if isinstance(item, dict)
+    ]
+    if payload.trend_name not in trend_names:
+        raise HTTPException(
+            status_code=400,
+            detail="trend_name must match a trend from Step 1 research",
+        )
+
+    maximum_results = _validate_step_2_max_results_or_400(payload.maximum_results)
+    now = _wizard_now_str()
+    step_2_doc = db[STEP_2_COLLECTION].find_one_and_update(
+        {"wizard_id": wizard_id},
+        {
+            "$set": {
+                "wizard_id": wizard_id,
+                "niche": wizard_doc.get("niche", ""),
+                "trend_name": payload.trend_name,
+                "video_title": payload.video_title,
+                "video_concept": payload.video_concept,
+                "maximum_results": maximum_results,
+                "status": STEP_2_STATUS_PROCESSING,
+                "research_result_json": None,
+                "debug_raw_response": None,
+                "debug_validation_errors": None,
+                "updated_at": now,
+                "completed_at": None,
+                "failed_at": None,
+            },
+            "$setOnInsert": {
+                "created_at": now,
+            },
+        },
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    if step_2_doc is None:
+        raise HTTPException(status_code=500, detail="Step 2 record could not be created")
+
+    try:
+        service = Step2VideoSearchService(model="gpt-4o")
+        research_result = service.run(wizard_doc, step_2_doc)
+    except Step2VideoSearchValidationError as exc:
+        failure_time = _wizard_now_str()
+        db[STEP_2_COLLECTION].find_one_and_update(
+            {"wizard_id": wizard_id},
+            {
+                "$set": {
+                    "status": STEP_2_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": exc.raw_response,
+                    "debug_validation_errors": exc.errors,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Step 2 video search validation failed",
+                "errors": exc.errors,
+            },
+        ) from exc
+    except Exception as exc:
+        failure_time = _wizard_now_str()
+        error_payload = [
+            {
+                "loc": ["service"],
+                "msg": str(exc),
+                "type": "runtime_error.step_2",
+            }
+        ]
+        db[STEP_2_COLLECTION].find_one_and_update(
+            {"wizard_id": wizard_id},
+            {
+                "$set": {
+                    "status": STEP_2_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": None,
+                    "debug_validation_errors": error_payload,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Step 2 video search generation failed",
+        ) from exc
+
+    warnings = research_result.get("warnings", [])
+    has_unverified_license = any(
+        not item.get("license", {}).get("license_verified", False)
+        for item in research_result.get("videos", [])
+        if isinstance(item, dict)
+    )
+    completed_status = (
+        STEP_2_STATUS_COMPLETED_WITH_WARNINGS
+        if warnings or has_unverified_license
+        else STEP_2_STATUS_COMPLETED
+    )
+
+    completed_time = _wizard_now_str()
+    saved = db[STEP_2_COLLECTION].find_one_and_update(
+        {"wizard_id": wizard_id},
+        {
+            "$set": {
+                "status": completed_status,
+                "updated_at": completed_time,
+                "completed_at": completed_time,
+                "failed_at": None,
+                "research_result_json": research_result,
+                "debug_raw_response": None,
+                "debug_validation_errors": None,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if saved is None:
+        raise HTTPException(status_code=404, detail="step 2 record not found")
+    return _serialize_with_id(saved)
+
+
+@app.get("/wizards/{wizard_id}/step-2", response_model=Step2WizardResponse)
+def get_wizard_step_2(wizard_id: str) -> Dict[str, Any]:
+    db = get_db()
+    _parse_object_id(wizard_id)
+    doc = db[STEP_2_COLLECTION].find_one({"wizard_id": wizard_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="step 2 record not found")
     return _serialize_with_id(doc)
 
 

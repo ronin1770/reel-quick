@@ -1,0 +1,250 @@
+{
+   "_id":"6a6634287bef448b20420ad5",
+   "niche":"motivation videos",
+   "research_period":{
+      "start_date":"2026-06-01",
+      "end_date":"2026-07-20"
+   },
+   "language":"English",
+   "platforms_analyzed":[
+      "Instagram Reels"
+   ],
+   "trend_limit":20,
+   "status":"completed",
+   "research_result_json":{
+      "wizard_id":"6a6634287bef448b20420ad5",
+      "niche":"motivation videos",
+      "language":"English",
+      "research_period":{
+         "start_date":"2026-06-01",
+         "end_date":"2026-07-20"
+      },
+      "platforms_analyzed":[
+         "Instagram Reels"
+      ],
+      "trends":[
+         {
+            "trend_id":"c594fe18-681d-4431-abb9-c6d7b49f60a8",
+            "trend_name":"Micro-Motivations",
+            "summary":"Short, impactful motivational messages that fit into daily routines.",
+            "evidence":"Recent discussions among creators highlight the effectiveness of quick, digestible content for busy audiences.",
+            "opportunity_score":85,
+            "creator_guidance":"Focus on delivering concise, powerful messages that can be consumed in under 30 seconds.",
+            "example_hooks":[
+               "Need a quick boost?",
+               "30 seconds to change your mindset!",
+               "Start your day with this thought.",
+               "A tiny push for a big change.",
+               "Your daily dose of motivation."
+            ],
+            "example_titles":[
+               "Quick Morning Motivation",
+               "30-Second Mindset Shift",
+               "Daily Motivation in a Flash",
+               "Instant Positivity Boost",
+               "Motivation for Busy Lives"
+            ],
+            "example_video_concepts":[
+               "A 30-second clip of a sunrise with a motivational voiceover.",
+               "Quick shots of people achieving small goals with text overlays.",
+               "A fast-paced montage of motivational quotes.",
+               "A single powerful quote with dynamic text animation.",
+               "A short story of overcoming a small challenge."
+            ],
+            "recommended_video_structure":[
+               "Hook",
+               "Message",
+               "Call to Action"
+            ],
+            "suggested_visual_style":[
+               "Fast cuts",
+               "Text overlays",
+               "Bright colors"
+            ],
+            "risks_and_limitations":[
+               "May lack depth",
+               "Risk of oversimplification"
+            ]
+         },
+         {
+            "trend_id":"67c6cc69-9a37-4cb6-8397-6eff0a44ca59",
+            "trend_name":"Personal Triumph Stories",
+            "summary":"Sharing personal stories of overcoming adversity to inspire others.",
+            "evidence":"Increased engagement on Reels featuring personal narratives and authentic storytelling.",
+            "opportunity_score":90,
+            "creator_guidance":"Use personal anecdotes to connect emotionally with your audience.",
+            "example_hooks":[
+               "I never thought I'd make it...",
+               "From rock bottom to success!",
+               "This is my story of resilience.",
+               "How I overcame my biggest challenge.",
+               "The moment that changed everything."
+            ],
+            "example_titles":[
+               "My Journey to Overcoming Adversity",
+               "From Struggle to Strength",
+               "A Story of Resilience and Hope",
+               "How I Turned My Life Around",
+               "The Power of Perseverance"
+            ],
+            "example_video_concepts":[
+               "A personal vlog-style video recounting a challenging experience.",
+               "A montage of past struggles and current successes.",
+               "Interview-style video with personal reflections.",
+               "A day-in-the-life showing progress and growth.",
+               "A narrated photo slideshow of a personal journey."
+            ],
+            "recommended_video_structure":[
+               "Introduction",
+               "Challenge",
+               "Resolution",
+               "Lesson"
+            ],
+            "suggested_visual_style":[
+               "Vlog-style",
+               "Narrative",
+               "Authentic"
+            ],
+            "risks_and_limitations":[
+               "Requires vulnerability",
+               "May not resonate with all audiences"
+            ]
+         },
+         {
+            "trend_id":"2167fa09-efe2-420d-8d27-192d825ca9e1",
+            "trend_name":"Motivational Challenges",
+            "summary":"Engaging audiences with interactive challenges that promote personal growth.",
+            "evidence":"Challenges have seen high participation rates, fostering community and engagement.",
+            "opportunity_score":80,
+            "creator_guidance":"Create challenges that are easy to participate in and share.",
+            "example_hooks":[
+               "Join the 7-day positivity challenge!",
+               "Can you complete this motivation challenge?",
+               "Challenge yourself to grow!",
+               "Are you ready for a change?",
+               "Take the first step with this challenge."
+            ],
+            "example_titles":[
+               "7-Day Motivation Challenge",
+               "Daily Growth Challenge",
+               "Join the Positivity Movement",
+               "Challenge Yourself to Change",
+               "Interactive Motivation Challenge"
+            ],
+            "example_video_concepts":[
+               "A series of daily tasks for viewers to complete.",
+               "A call-to-action video encouraging participation.",
+               "A recap of a completed challenge with participant highlights.",
+               "A motivational speech introducing the challenge.",
+               "A countdown timer with challenge instructions."
+            ],
+            "recommended_video_structure":[
+               "Introduction",
+               "Challenge Details",
+               "Call to Action"
+            ],
+            "suggested_visual_style":[
+               "Dynamic",
+               "Interactive",
+               "Engaging"
+            ],
+            "risks_and_limitations":[
+               "Requires ongoing engagement",
+               "Potential for low participation"
+            ]
+         },
+         {
+            "trend_id":"f128ae60-cce8-4360-b51c-be41e053b1f4",
+            "trend_name":"Visual Affirmations",
+            "summary":"Using visually appealing affirmations to boost positivity and self-belief.",
+            "evidence":"Affirmation videos are gaining traction for their calming and uplifting effects.",
+            "opportunity_score":75,
+            "creator_guidance":"Focus on creating visually soothing content paired with positive affirmations.",
+            "example_hooks":[
+               "Start your day with these affirmations.",
+               "Believe in yourself with these words.",
+               "Affirmations to boost your confidence.",
+               "Visualize your success with these affirmations.",
+               "Empower your mind with positivity."
+            ],
+            "example_titles":[
+               "Morning Affirmations for Success",
+               "Daily Affirmations for Positivity",
+               "Visualize Your Goals with Affirmations",
+               "Empowering Affirmations for Self-Belief",
+               "Affirmations to Start Your Day Right"
+            ],
+            "example_video_concepts":[
+               "A serene landscape with affirmations overlaid.",
+               "A calming animation with voiceover affirmations.",
+               "A series of positive words with relaxing music.",
+               "A guided affirmation session with visuals.",
+               "A montage of peaceful scenes with text affirmations."
+            ],
+            "recommended_video_structure":[
+               "Visual Introduction",
+               "Affirmation Sequence",
+               "Closing Encouragement"
+            ],
+            "suggested_visual_style":[
+               "Calming",
+               "Aesthetic",
+               "Minimalist"
+            ],
+            "risks_and_limitations":[
+               "May feel repetitive",
+               "Requires high-quality visuals"
+            ]
+         },
+         {
+            "trend_id":"e2111623-45ea-4732-8642-b9f8a908f026",
+            "trend_name":"Motivational Quotes with a Twist",
+            "summary":"Presenting classic motivational quotes with unique interpretations or visuals.",
+            "evidence":"Quotes remain popular, but audiences seek fresh perspectives.",
+            "opportunity_score":70,
+            "creator_guidance":"Reimagine well-known quotes with creative visuals or interpretations.",
+            "example_hooks":[
+               "You've heard this quote, but have you seen it like this?",
+               "A new take on a classic quote.",
+               "This quote changed my perspective.",
+               "See this quote in a new light.",
+               "A fresh twist on timeless wisdom."
+            ],
+            "example_titles":[
+               "Reimagined Motivational Quotes",
+               "Classic Quotes with a Modern Twist",
+               "New Perspectives on Timeless Wisdom",
+               "Visual Interpretations of Famous Quotes",
+               "Quotes That Inspire Change"
+            ],
+            "example_video_concepts":[
+               "A famous quote with unexpected visuals.",
+               "A quote with a personal story or interpretation.",
+               "A dynamic animation of a quote.",
+               "A quote paired with a surprising video clip.",
+               "A quote with a creative visual metaphor."
+            ],
+            "recommended_video_structure":[
+               "Quote Introduction",
+               "Visual Interpretation",
+               "Personal Insight"
+            ],
+            "suggested_visual_style":[
+               "Creative",
+               "Unexpected",
+               "Artistic"
+            ],
+            "risks_and_limitations":[
+               "Potential for overuse",
+               "Requires creativity"
+            ]
+         }
+      ]
+   },
+   "debug_raw_response":null,
+   "debug_validation_errors":null,
+   "created_at":"2026-07-26 16:22:00",
+   "updated_at":"2026-07-27 16:39:10",
+   "completed_at":"2026-07-27 16:39:10",
+   "failed_at":null
+}

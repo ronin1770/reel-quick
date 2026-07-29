@@ -6,6 +6,7 @@ python-dotenv
 arq
 moviepy
 langchain-openai
+openai
 soundfile
 qwen-tts
 
