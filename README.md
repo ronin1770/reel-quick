@@ -6,6 +6,12 @@
 
 It enables developers and creators to automate reel creation workflows including video stitching, trimming, and text overlays—without authentication or external dependencies.
 
+
+![Python](https://img.shields.io/badge/Python-3.11+-blue)
+![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-green)
+![License](https://img.shields.io/github/license/ronin1770/reel-quick)
+![GitHub Stars](https://img.shields.io/github/stars/ronin1770/reel-quick)
+![GitHub Issues](https://img.shields.io/github/issues/ronin1770/reel-quick)
 ---
 
 ### 🔑 Keywords
