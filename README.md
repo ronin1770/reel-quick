@@ -9,7 +9,7 @@ It enables developers and creators to automate reel creation workflows including
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-green)
-![License](https://img.shields.io/github/license/ronin1770/reel-quick)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![GitHub Stars](https://img.shields.io/github/stars/ronin1770/reel-quick)
 ![GitHub Issues](https://img.shields.io/github/issues/ronin1770/reel-quick)
 ---
