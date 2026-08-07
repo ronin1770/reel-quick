@@ -6,5 +6,7 @@ python-dotenv
 arq
 moviepy
 langchain-openai
+openai
+httpx
 soundfile
 pydantic

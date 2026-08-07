@@ -7,6 +7,7 @@ arq
 moviepy
 langchain-openai
 openai
+httpx
 soundfile
 qwen-tts
 

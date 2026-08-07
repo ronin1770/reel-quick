@@ -93,6 +93,17 @@ from backend.models.wizard_step_1 import (
     Step1WizardResponse,
     _now_str as _wizard_now_str,
 )
+from backend.models.wizard_audio_search import (
+    AUDIO_SEARCH_COLLECTION,
+    AUDIO_SEARCH_STATUS_COMPLETED,
+    AUDIO_SEARCH_STATUS_FAILED,
+    AUDIO_SEARCH_STATUS_PROCESSING,
+    DEFAULT_AUDIO_SEARCH_MAX_RESULTS,
+    MIN_AUDIO_SEARCH_MAX_RESULTS,
+    AudioSearchWizardCreate,
+    AudioSearchWizardModel,
+    AudioSearchWizardResponse,
+)
 from backend.models.wizard_step_2 import (
     DEFAULT_STEP_2_MAX_RESULTS,
     MIN_STEP_2_MAX_RESULTS,
@@ -135,6 +146,10 @@ from backend.wizard.step_1_idea import (
 from backend.wizard.step_2_video_search import (
     Step2VideoSearchService,
     Step2VideoSearchValidationError,
+)
+from backend.wizard.step_3_audio_search import (
+    Step3AudioSearchService,
+    Step3AudioSearchValidationError,
 )
 
 app = FastAPI()
@@ -1032,6 +1047,64 @@ def _serialize_with_id(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 
+def _normalize_audio_search_doc_for_response(
+    db: Any,
+    doc: Dict[str, Any],
+) -> Dict[str, Any]:
+    normalized = _serialize_with_id(doc)
+    research_period = normalized.get("research_period")
+    if (
+        isinstance(research_period, dict)
+        and research_period.get("start_date")
+        and research_period.get("end_date")
+    ):
+        return normalized
+
+    wizard_id = normalized.get("wizard_id")
+    if not wizard_id:
+        raise HTTPException(
+            status_code=409,
+            detail="audio search record is missing wizard_id",
+        )
+
+    wizard_doc = db[WIZARD_STEP_1_COLLECTION].find_one({"_id": _parse_object_id(wizard_id)})
+    if wizard_doc is None:
+        raise HTTPException(
+            status_code=409,
+            detail="audio search record is stored in a legacy format and cannot be normalized",
+        )
+
+    wizard_research_period = wizard_doc.get("research_period", {})
+    if (
+        not isinstance(wizard_research_period, dict)
+        or not wizard_research_period.get("start_date")
+        or not wizard_research_period.get("end_date")
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="wizard research period is missing for this audio search record",
+        )
+
+    normalized["research_period"] = wizard_research_period
+    normalized["niche"] = normalized.get("niche") or wizard_doc.get("niche", "")
+    normalized["maximum_results"] = (
+        normalized.get("maximum_results") or DEFAULT_AUDIO_SEARCH_MAX_RESULTS
+    )
+
+    db[AUDIO_SEARCH_COLLECTION].find_one_and_update(
+        {"_id": doc["_id"]},
+        {
+            "$set": {
+                "research_period": wizard_research_period,
+                "niche": normalized["niche"],
+                "maximum_results": normalized["maximum_results"],
+                "updated_at": _wizard_now_str(),
+            }
+        },
+    )
+    return normalized
+
+
 def _parse_object_id(raw_id: str) -> ObjectId:
     try:
         return ObjectId(raw_id)
@@ -1086,6 +1159,26 @@ def _validate_step_2_max_results_or_400(maximum_results: Optional[int]) -> int:
             detail=(
                 "maximum_results must be between "
                 f"{MIN_STEP_2_MAX_RESULTS} and {DEFAULT_STEP_2_MAX_RESULTS}"
+            ),
+        )
+    return normalized
+
+
+def _validate_audio_search_max_results_or_400(maximum_results: Optional[int]) -> int:
+    normalized = (
+        maximum_results
+        if maximum_results is not None
+        else DEFAULT_AUDIO_SEARCH_MAX_RESULTS
+    )
+    if (
+        normalized < MIN_AUDIO_SEARCH_MAX_RESULTS
+        or normalized > DEFAULT_AUDIO_SEARCH_MAX_RESULTS
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "maximum_results must be between "
+                f"{MIN_AUDIO_SEARCH_MAX_RESULTS} and {DEFAULT_AUDIO_SEARCH_MAX_RESULTS}"
             ),
         )
     return normalized
@@ -2943,6 +3036,158 @@ def get_wizard_step_2(wizard_id: str) -> Dict[str, Any]:
     if doc is None:
         raise HTTPException(status_code=404, detail="step 2 record not found")
     return _serialize_with_id(doc)
+
+
+@app.post("/wizards/{wizard_id}/step-3", response_model=AudioSearchWizardResponse)
+def run_wizard_audio_search(
+    wizard_id: str,
+    payload: AudioSearchWizardCreate,
+) -> Dict[str, Any]:
+    db = get_db()
+    oid = _parse_object_id(wizard_id)
+    wizard_doc = db[WIZARD_STEP_1_COLLECTION].find_one({"_id": oid})
+    if wizard_doc is None:
+        raise HTTPException(status_code=404, detail="wizard not found")
+    if (
+        wizard_doc.get("status") != WIZARD_STATUS_COMPLETED
+        or not wizard_doc.get("research_result_json")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Step 1 must be completed before Step 3 audio search can run",
+        )
+
+    if payload.niche != wizard_doc.get("niche", ""):
+        raise HTTPException(
+            status_code=400,
+            detail="niche must match the current wizard",
+        )
+
+    normalized_period = _validate_wizard_dates_or_400(
+        payload.start_date,
+        payload.end_date,
+    )
+    if normalized_period != wizard_doc.get("research_period", {}):
+        raise HTTPException(
+            status_code=400,
+            detail="start_date and end_date must match the current wizard research period",
+        )
+
+    maximum_results = _validate_audio_search_max_results_or_400(payload.limit)
+    now = _wizard_now_str()
+    db[AUDIO_SEARCH_COLLECTION].delete_many({"wizard_id": wizard_id})
+
+    audio_model = AudioSearchWizardModel(
+        wizard_id=wizard_id,
+        niche=payload.niche,
+        research_period=normalized_period,
+        maximum_results=maximum_results,
+        status=AUDIO_SEARCH_STATUS_PROCESSING,
+        created_at=now,
+        updated_at=now,
+    )
+    insert_result = db[AUDIO_SEARCH_COLLECTION].insert_one(audio_model.to_bson())
+    audio_doc = db[AUDIO_SEARCH_COLLECTION].find_one({"_id": insert_result.inserted_id})
+    if audio_doc is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Audio search record could not be created",
+        )
+
+    try:
+        service = Step3AudioSearchService(model="gpt-4o")
+        research_result = service.run(wizard_doc, audio_doc)
+    except Step3AudioSearchValidationError as exc:
+        logger.error(
+            "Step 3 audio search validation failed for wizard_id=%s: %s | errors=%s | raw_response=%s",
+            wizard_id,
+            str(exc),
+            exc.errors,
+            exc.raw_response,
+        )
+        failure_time = _wizard_now_str()
+        db[AUDIO_SEARCH_COLLECTION].find_one_and_update(
+            {"wizard_id": wizard_id},
+            {
+                "$set": {
+                    "status": AUDIO_SEARCH_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": exc.raw_response,
+                    "debug_validation_errors": exc.errors,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Audio search validation failed",
+                "errors": exc.errors,
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Step 3 audio search generation failed for wizard_id=%s",
+            wizard_id,
+        )
+        failure_time = _wizard_now_str()
+        error_payload = [
+            {
+                "loc": ["service"],
+                "msg": str(exc),
+                "type": "runtime_error.audio_search",
+            }
+        ]
+        db[AUDIO_SEARCH_COLLECTION].find_one_and_update(
+            {"wizard_id": wizard_id},
+            {
+                "$set": {
+                    "status": AUDIO_SEARCH_STATUS_FAILED,
+                    "updated_at": failure_time,
+                    "failed_at": failure_time,
+                    "completed_at": None,
+                    "research_result_json": None,
+                    "debug_raw_response": None,
+                    "debug_validation_errors": error_payload,
+                }
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Audio search generation failed",
+        ) from exc
+
+    completed_time = _wizard_now_str()
+    saved = db[AUDIO_SEARCH_COLLECTION].find_one_and_update(
+        {"wizard_id": wizard_id},
+        {
+            "$set": {
+                "status": AUDIO_SEARCH_STATUS_COMPLETED,
+                "updated_at": completed_time,
+                "completed_at": completed_time,
+                "failed_at": None,
+                "research_result_json": research_result,
+                "debug_raw_response": None,
+                "debug_validation_errors": None,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if saved is None:
+        raise HTTPException(status_code=404, detail="audio search record not found")
+    return _serialize_with_id(saved)
+
+
+@app.get("/wizards/{wizard_id}/step-3", response_model=AudioSearchWizardResponse)
+def get_wizard_audio_search(wizard_id: str) -> Dict[str, Any]:
+    db = get_db()
+    _parse_object_id(wizard_id)
+    doc = db[AUDIO_SEARCH_COLLECTION].find_one({"wizard_id": wizard_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="audio search record not found")
+    return _normalize_audio_search_doc_for_response(db, doc)
 
 
 @app.post("/monthly-figures", response_model=RawPostsDataResponse)

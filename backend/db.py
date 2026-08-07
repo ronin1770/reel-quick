@@ -46,6 +46,7 @@ def init_db() -> Database:
         "custom_voices",
         "wizard_step_1",
         "step_2",
+        "wizard_audio_search",
     ):
         if name not in existing:
             db.create_collection(name)
@@ -63,6 +64,8 @@ def init_db() -> Database:
     db.wizard_step_1.create_index("status")
     db.step_2.create_index("wizard_id", unique=True)
     db.step_2.create_index("status")
+    db.wizard_audio_search.create_index("wizard_id", unique=True)
+    db.wizard_audio_search.create_index("status")
     return db
 
 
