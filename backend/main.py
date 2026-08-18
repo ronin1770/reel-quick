@@ -22,6 +22,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -1845,6 +1846,16 @@ def add_video_text_overlays(
     return _serialize(saved_doc)
 
 
+@app.get("/videos/{video_id}/text-overlays", response_model=VideoTextSchema)
+def get_video_text_overlays(video_id: str) -> Dict[str, Any]:
+    db = get_db()
+    _require_video_for_text_overlay(db, video_id)
+    doc = db[VIDEO_OVERLAY_TEXT_COLLECTION].find_one({"video_id": video_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="text overlays not found for video")
+    return _serialize(doc)
+
+
 @app.post(
     "/enqueue/text-overlay",
     response_model=TextOverlayEnqueueResponse,
@@ -2152,12 +2163,28 @@ def delete_video(video_id: str) -> Dict[str, Any]:
     return _serialize(doc)
 
 
-@app.post("/videos/{video_id}/enqueue")
-async def enqueue_video(video_id: str) -> JSONResponse:
-    db = get_db()
+async def _enqueue_video_render(
+    *,
+    db: Any,
+    video_id: str,
+    require_failed: bool = False,
+) -> Dict[str, Any]:
     video = db.videos.find_one({"video_id": video_id})
     if video is None:
         raise HTTPException(status_code=404, detail="video not found")
+
+    current_status = str(video.get("status") or "").strip().lower()
+    if current_status in {"pending", "queued", "processing"}:
+        raise HTTPException(
+            status_code=409,
+            detail="video is already pending or processing",
+        )
+    if require_failed and current_status != "failed":
+        raise HTTPException(
+            status_code=409,
+            detail="only failed videos can be retried",
+        )
+
     resolved_transition_name = _resolve_transition_name_or_400(
         db,
         video.get("transition_name"),
@@ -2217,31 +2244,66 @@ async def enqueue_video(video_id: str) -> JSONResponse:
     if job is None:
         raise HTTPException(status_code=500, detail="enqueue failed")
 
-    try:
-        db.videos.update_one(
-            {"video_id": video_id},
-            {
-                "$set": {
-                    "status": "queued",
-                    "job_id": job.job_id,
-                    "error_reason": None,
-                    "modification_time": datetime.utcnow(),
-                }
-            },
-        )
-    except Exception as exc:
-        logger.error("Failed to update video enqueue status: %s", exc)
-        raise HTTPException(status_code=500, detail="enqueue status update failed") from exc
+    now = datetime.utcnow()
+    updated = db.videos.find_one_and_update(
+        {"video_id": video_id},
+        {
+            "$set": {
+                "status": "pending",
+                "job_id": job.job_id,
+                "video_size": None,
+                "output_file_location": None,
+                "error_reason": None,
+                "modification_time": now,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="video not found")
 
     logger.info("Enqueued video %s as job %s", video_id, job.job_id)
+    return {
+        "video": _serialize(updated),
+        "job_id": job.job_id,
+    }
+
+
+@app.post("/videos/{video_id}/enqueue")
+async def enqueue_video(video_id: str) -> JSONResponse:
+    db = get_db()
+    result = await _enqueue_video_render(db=db, video_id=video_id)
+    payload = {
+        "message": "video pending",
+        "video_id": video_id,
+        "job_id": result["job_id"],
+        "status": "pending",
+        "video": result["video"],
+    }
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
-        content={
-            "message": "video queued",
-            "video_id": video_id,
-            "job_id": job.job_id,
-            "status": "queued",
-        },
+        content=jsonable_encoder(payload),
+    )
+
+
+@app.post("/videos/{video_id}/retry")
+async def retry_video(video_id: str) -> JSONResponse:
+    db = get_db()
+    result = await _enqueue_video_render(
+        db=db,
+        video_id=video_id,
+        require_failed=True,
+    )
+    payload = {
+        "message": "video retry pending",
+        "video_id": video_id,
+        "job_id": result["job_id"],
+        "status": "pending",
+        "video": result["video"],
+    }
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content=jsonable_encoder(payload),
     )
 
 

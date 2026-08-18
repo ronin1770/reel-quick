@@ -26,6 +26,26 @@ type VideoRecord = {
   output_file_location?: string | null;
 };
 
+type SavedTextOverlayRecord = {
+  overlay_id?: string;
+  text?: string;
+  start_time?: number;
+  end_time?: number;
+  style?: {
+    font_size?: number;
+    text_color?: string;
+  };
+  position?: {
+    preset?: string;
+  };
+};
+
+type VideoTextOverlayResponse = {
+  video_overlay_config?: {
+    overlays?: SavedTextOverlayRecord[];
+  };
+};
+
 type TextOverlay = {
   id: string;
   text: string;
@@ -127,10 +147,23 @@ const fileNameFromPath = (value: string) => {
   return parts.at(-1) ?? value;
 };
 
+const sortOverlaysByStartTime = (items: TextOverlay[]) =>
+  [...items].sort((left, right) => {
+    if (left.startSeconds !== right.startSeconds) {
+      return left.startSeconds - right.startSeconds;
+    }
+    if (left.endSeconds !== right.endSeconds) {
+      return left.endSeconds - right.endSeconds;
+    }
+    return left.text.localeCompare(right.text);
+  });
+
 export default function CreateTextOverlayPage({
   videoId,
 }: CreateTextOverlayPageProps) {
   const router = useRouter();
+  const videoPlayerRef = useRef<HTMLVideoElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,6 +171,7 @@ export default function CreateTextOverlayPage({
 
   const [overlays, setOverlays] = useState<TextOverlay[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState("");
   const [draftStart, setDraftStart] = useState(0);
   const [draftEnd, setDraftEnd] = useState(1);
@@ -157,6 +191,76 @@ export default function CreateTextOverlayPage({
   });
   const [uiNote, setUiNote] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadSavedOverlays = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/videos/${encodeURIComponent(videoId)}/text-overlays`,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (response.status === 404) {
+        setOverlays([]);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `Unable to load saved text overlays (${response.status})`
+        );
+      }
+
+      const data = (await response.json()) as VideoTextOverlayResponse;
+      const savedOverlays = Array.isArray(data.video_overlay_config?.overlays)
+        ? data.video_overlay_config?.overlays ?? []
+        : [];
+
+      setOverlays(
+        sortOverlaysByStartTime(savedOverlays.map((overlay, index) => {
+          const preset = String(overlay.position?.preset ?? "top").toLowerCase();
+          const startSeconds = Math.max(
+            0,
+            Math.floor(Number(overlay.start_time ?? 0))
+          );
+          const endSeconds = Math.max(
+            startSeconds + 1,
+            Math.floor(Number(overlay.end_time ?? startSeconds + 1))
+          );
+          const fontSize = Math.max(
+            MIN_FONT_SIZE,
+            Math.min(
+              MAX_FONT_SIZE,
+              Math.floor(Number(overlay.style?.font_size ?? DEFAULT_FONT_SIZE))
+            )
+          );
+          const textColor =
+            normalizeHexColor(String(overlay.style?.text_color ?? "")) ??
+            DEFAULT_TEXT_COLOR;
+
+          return {
+            id:
+              String(overlay.overlay_id || "").trim() ||
+              `saved-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            text: String(overlay.text || "").trim(),
+            startSeconds,
+            endSeconds,
+            fontSize,
+            textColor,
+            positionPreset:
+              preset === "center" || preset === "bottom" ? preset : "top",
+          } satisfies TextOverlay;
+        }))
+      );
+    } catch (err) {
+      setUiNote(
+        err instanceof Error
+          ? err.message
+          : "Unable to load saved text overlays."
+      );
+    }
+  }, [videoId]);
 
   const fetchVideo = useCallback(async () => {
     setIsLoading(true);
@@ -186,9 +290,17 @@ export default function CreateTextOverlayPage({
     fetchVideo();
   }, [fetchVideo]);
 
+  useEffect(() => {
+    loadSavedOverlays();
+  }, [loadSavedOverlays]);
+
   const videoDuration = useMemo(
     () => parseDurationToSeconds(video?.video_size),
     [video?.video_size]
+  );
+  const sortedOverlays = useMemo(
+    () => sortOverlaysByStartTime(overlays),
+    [overlays]
   );
 
   const canAddOverlay = videoDuration >= 1;
@@ -199,8 +311,23 @@ export default function CreateTextOverlayPage({
       ? `${API_BASE}/videos/${encodeURIComponent(video.video_id)}/download`
       : null;
 
+  const syncPreviewTime = useCallback(
+    (videoElement: HTMLVideoElement | null) => {
+      if (!videoElement || !Number.isFinite(draftStart)) return;
+      const duration = Number.isFinite(videoElement.duration)
+        ? videoElement.duration
+        : draftStart;
+      const nextTime = Math.max(0, Math.min(draftStart, duration || draftStart));
+      if (Math.abs(videoElement.currentTime - nextTime) > 0.25) {
+        videoElement.currentTime = nextTime;
+      }
+    },
+    [draftStart]
+  );
+
   const openOverlayDialog = () => {
     if (!canAddOverlay) return;
+    setEditingOverlayId(null);
     setDraftText("");
     setDraftStart(0);
     setDraftEnd(Math.max(1, Math.min(videoDuration, 3)));
@@ -213,7 +340,24 @@ export default function CreateTextOverlayPage({
   };
 
   const closeOverlayDialog = () => {
+    setEditingOverlayId(null);
     setIsDialogOpen(false);
+  };
+
+  const editOverlay = (overlayId: string) => {
+    const overlay = overlays.find((item) => item.id === overlayId);
+    if (!overlay) return;
+
+    setEditingOverlayId(overlay.id);
+    setDraftText(overlay.text);
+    setDraftStart(overlay.startSeconds);
+    setDraftEnd(overlay.endSeconds);
+    setDraftFontSize(overlay.fontSize);
+    setDraftTextColor(overlay.textColor);
+    setDraftTextColorInput(overlay.textColor);
+    setDraftPositionPreset(overlay.positionPreset);
+    setUiNote(null);
+    setIsDialogOpen(true);
   };
 
   const onStartChange = (raw: number) => {
@@ -264,6 +408,7 @@ export default function CreateTextOverlayPage({
     const { videoWidth, videoHeight } = videoElement;
 
     if (videoWidth <= 0 || videoHeight <= 0) return;
+    syncPreviewTime(videoElement);
     setSourceVideoSize((previous) => {
       if (previous.width === videoWidth && previous.height === videoHeight) {
         return previous;
@@ -274,6 +419,12 @@ export default function CreateTextOverlayPage({
       };
     });
   };
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    syncPreviewTime(previewVideoRef.current);
+    syncPreviewTime(videoPlayerRef.current);
+  }, [draftStart, isDialogOpen, syncPreviewTime]);
 
   useEffect(() => {
     if (!isDialogOpen) return;
@@ -340,12 +491,13 @@ export default function CreateTextOverlayPage({
         ? { alignItems: "flex-end", paddingBottom: `${previewEdgePadding}px` }
         : { alignItems: "center" };
 
-  const addOverlay = () => {
+  const saveOverlayDraft = () => {
     if (!canCreateDraft) return;
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const textColor = normalizeHexColor(draftTextColor) ?? DEFAULT_TEXT_COLOR;
     const overlay: TextOverlay = {
-      id,
+      id:
+        editingOverlayId ??
+        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: draftText.trim(),
       startSeconds: draftStart,
       endSeconds: draftEnd,
@@ -353,7 +505,15 @@ export default function CreateTextOverlayPage({
       textColor,
       positionPreset: draftPositionPreset,
     };
-    setOverlays((previous) => [...previous, overlay]);
+    setOverlays((previous) => {
+      if (!editingOverlayId) {
+        return sortOverlaysByStartTime([...previous, overlay]);
+      }
+      return sortOverlaysByStartTime(
+        previous.map((item) => (item.id === editingOverlayId ? overlay : item))
+      );
+    });
+    setEditingOverlayId(null);
     setIsDialogOpen(false);
   };
 
@@ -371,7 +531,7 @@ export default function CreateTextOverlayPage({
 
     try {
       const savePayload = {
-        overlays: overlays.map((overlay) => ({
+        overlays: sortedOverlays.map((overlay) => ({
           overlay_id: overlay.id,
           text: overlay.text,
           start_time: overlay.startSeconds,
@@ -491,6 +651,7 @@ export default function CreateTextOverlayPage({
                   </div>
                 ) : videoDownloadUrl ? (
                   <video
+                    ref={videoPlayerRef}
                     className="surface-preview aspect-video w-full rounded-xl"
                     controls
                     src={videoDownloadUrl}
@@ -537,15 +698,15 @@ export default function CreateTextOverlayPage({
             <aside className="surface-subtle rounded-2xl p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold">Overlays</h3>
-                <span className="neon-chip">{overlays.length} total</span>
+                <span className="neon-chip">{sortedOverlays.length} total</span>
               </div>
               <div className="mt-4 space-y-3">
-                {overlays.length === 0 ? (
+                {sortedOverlays.length === 0 ? (
                   <p className="surface-subtle rounded-xl px-3 py-3 text-sm text-soft">
                     No overlays added yet.
                   </p>
                 ) : (
-                  overlays.map((overlay) => (
+                  sortedOverlays.map((overlay) => (
                     <article
                       key={overlay.id}
                       className="surface-subtle rounded-xl px-3 py-3"
@@ -568,13 +729,22 @@ export default function CreateTextOverlayPage({
                             Position: {overlay.positionPreset}
                           </p>
                         </div>
-                        <button
-                          className="theme-link-danger"
-                          type="button"
-                          onClick={() => deleteOverlay(overlay.id)}
-                        >
-                          Delete
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="theme-link"
+                            type="button"
+                            onClick={() => editOverlay(overlay.id)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="theme-link-danger"
+                            type="button"
+                            onClick={() => deleteOverlay(overlay.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </article>
                   ))
@@ -590,10 +760,12 @@ export default function CreateTextOverlayPage({
           className="modal-backdrop fixed inset-0 z-30 flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center"
           role="dialog"
           aria-modal="true"
-          aria-label="Add text overlay"
+          aria-label={editingOverlayId ? "Edit text overlay" : "Add text overlay"}
         >
           <div className="neon-panel my-auto max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-3xl p-6">
-            <h2 className="font-display text-2xl font-semibold">Add Text Overlay</h2>
+            <h2 className="font-display text-2xl font-semibold">
+              {editingOverlayId ? "Edit Text Overlay" : "Add Text Overlay"}
+            </h2>
             <p className="mt-1 text-sm text-muted">
               Select text and timing in <span className="font-mono">mm:ss</span>.
             </p>
@@ -740,6 +912,7 @@ export default function CreateTextOverlayPage({
                 >
                   {videoDownloadUrl ? (
                     <video
+                      ref={previewVideoRef}
                       className="h-full w-full object-contain"
                       src={videoDownloadUrl}
                       muted
@@ -782,10 +955,10 @@ export default function CreateTextOverlayPage({
               <button
                 className="neon-button neon-button-primary"
                 type="button"
-                onClick={addOverlay}
+                onClick={saveOverlayDraft}
                 disabled={!canCreateDraft}
               >
-                Add Overlay
+                {editingOverlayId ? "Save Changes" : "Add Overlay"}
               </button>
             </div>
           </div>

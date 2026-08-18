@@ -26,6 +26,41 @@ class VideoAutomation:
         self.processing_data = {}
         self.logger = get_logger(name="instagram_reel_creation_video_automation")
 
+    def _normalize_clip_size(self, clip, target_size):
+        target_width, target_height = (int(target_size[0]), int(target_size[1]))
+        clip_width, clip_height = clip.size
+
+        if (int(round(clip_width)), int(round(clip_height))) == (
+            target_width,
+            target_height,
+        ):
+            return clip
+
+        width_scale = target_width / clip_width
+        height_scale = target_height / clip_height
+
+        if width_scale >= height_scale:
+            normalized = clip.resized(width=target_width)
+        else:
+            normalized = clip.resized(height=target_height)
+
+        if normalized.w < target_width or normalized.h < target_height:
+            normalized = normalized.with_background_color(
+                size=(target_width, target_height),
+                color=(0, 0, 0),
+                pos=("center", "center"),
+            )
+
+        if normalized.w != target_width or normalized.h != target_height:
+            normalized = normalized.cropped(
+                x_center=int(round(normalized.w / 2)),
+                y_center=int(round(normalized.h / 2)),
+                width=target_width,
+                height=target_height,
+            )
+
+        return normalized
+
     #this method creates the output video
     def process_and_create_output(self):
         #check if processing_data is not {}
@@ -119,10 +154,11 @@ class VideoAutomation:
                         target_fps = int(round(clip.fps or 30))
                     clip = clip.subclipped(start, end).resized(width=target_width)
                     if target_size is None:
-                        target_size = clip.size
-                    elif clip.size != target_size:
-                        # Keep output dimensions aligned for xfade compatibility.
-                        clip = clip.resized(width=target_size[0], height=target_size[1])
+                        target_size = (
+                            int(round(clip.w)),
+                            int(round(clip.h)),
+                        )
+                    clip = self._normalize_clip_size(clip, target_size)
                     if drop_audio:
                         clip = clip.without_audio()
 

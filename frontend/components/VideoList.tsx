@@ -25,6 +25,12 @@ type TextOverlayJobRecord = {
   overlay_result_status?: string;
 };
 
+type VideoEnqueueResponse = {
+  detail?: string;
+  message?: string;
+  video?: VideoRecord;
+};
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -46,6 +52,7 @@ const normalizeStatus = (status?: string) =>
 
 const statusLabel = (status?: string) => {
   const normalized = normalizeStatus(status);
+  if (normalized === "pending") return "Pending";
   if (normalized === "queued") return "Queued";
   if (normalized === "processing") return "Processing";
   if (normalized === "completed") return "Completed";
@@ -59,6 +66,7 @@ const statusClass = (status?: string) => {
   if (normalized === "completed") return "text-status-success";
   if (normalized === "failed") return "text-status-error";
   if (normalized === "processing") return "text-status-info";
+  if (normalized === "pending") return "text-status-info";
   if (normalized === "queued") return "text-status-info";
   if (normalized === "created") return "text-status-warning";
   return "text-status-neutral";
@@ -102,6 +110,7 @@ export default function VideoList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
 
   const fetchVideos = useCallback(async () => {
     setIsLoading(true);
@@ -152,11 +161,53 @@ export default function VideoList() {
     } finally {
       setIsLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   useEffect(() => {
     fetchVideos();
   }, [fetchVideos]);
+
+  const handleRetry = useCallback(
+    async (videoId: string) => {
+      setRetrying((prev) => ({ ...prev, [videoId]: true }));
+      setError(null);
+
+      try {
+        const response = await fetch(`${API_BASE}/videos/${videoId}/retry`, {
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | VideoEnqueueResponse
+          | null;
+        if (!response.ok) {
+          throw new Error(
+            payload?.detail ??
+              payload?.message ??
+              `Unable to retry video (${response.status})`
+          );
+        }
+
+        if (payload?.video?.video_id === videoId) {
+          setVideos((prev) =>
+            prev.map((video) =>
+              video.video_id === videoId ? payload.video ?? video : video
+            )
+          );
+        } else {
+          await fetchVideos();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to retry video.");
+      } finally {
+        setRetrying((prev) => {
+          const next = { ...prev };
+          delete next[videoId];
+          return next;
+        });
+      }
+    },
+    [fetchVideos]
+  );
 
   const handleDelete = useCallback(
     async (videoId: string) => {
@@ -186,7 +237,7 @@ export default function VideoList() {
         });
       }
     },
-    [API_BASE]
+    []
   );
 
   const grouped = useMemo(() => {
@@ -279,6 +330,7 @@ export default function VideoList() {
                   <th className="py-3 pr-6">Updated</th>
                   <th className="py-3 pr-6">Output / Error</th>
                   <th className="py-3 pr-6">Text Overlay</th>
+                  <th className="py-3 pr-6">Retry</th>
                   <th className="py-3">Delete</th>
                 </tr>
               </thead>
@@ -354,17 +406,27 @@ export default function VideoList() {
                         )}
                       </td>
                       <td className="py-4 pr-6 align-top text-xs">
-                        {isOverlayDone ? (
-                          <span className="font-semibold text-status-success">Done</span>
-                        ) : (
-                          <Link
-                            className="theme-link"
-                            href={`/create-text-overlay/${encodeURIComponent(
-                              video.video_id
-                            )}`}
+                        <Link
+                          className="theme-link"
+                          href={`/create-text-overlay/${encodeURIComponent(
+                            video.video_id
+                          )}`}
+                        >
+                          {isOverlayDone ? "Edit" : overlayMeta ? "Open" : "Create"}
+                        </Link>
+                      </td>
+                      <td className="py-4 pr-6 align-top text-xs">
+                        {normalizeStatus(video.status) === "failed" ? (
+                          <button
+                            className="theme-link disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            onClick={() => handleRetry(video.video_id)}
+                            disabled={Boolean(retrying[video.video_id])}
                           >
-                            Create
-                          </Link>
+                            {retrying[video.video_id] ? "Retrying..." : "Retry"}
+                          </button>
+                        ) : (
+                          <span className="text-soft">—</span>
                         )}
                       </td>
                       <td className="py-4 align-top text-xs">
