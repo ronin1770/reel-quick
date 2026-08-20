@@ -52,6 +52,44 @@ This repository was created to **automate and streamline the reel-creation workf
 
 ---
 
+## Easy Startup Commands
+
+For easy start and managing components, we have created systemd services for Linux / Ubuntu / Debian.
+
+Please check folder named **systemd_scripts** for systemd scripts for following four services.
+
+### Reel Quick Backend
+
+```bash
+sudo systemctl start reel-quick-backend
+sudo systemctl restart reel-quick-backend
+systemctl status reel-quick-backend
+```
+
+### Reel Quick Frontend
+
+```bash
+sudo systemctl start reel-quick-frontend
+sudo systemctl restart reel-quick-frontend
+systemctl status reel-quick-frontend
+```
+
+### Reel Quick Video Worker
+
+```bash
+sudo systemctl start reel-quick-video-worker
+sudo systemctl restart reel-quick-video-worker
+systemctl status reel-quick-video-worker
+```
+
+### Reel Quick Text Overlay Worker
+
+```bash
+sudo systemctl start reel-quick-text-overlay-worker
+sudo systemctl restart reel-quick-text-overlay-worker
+systemctl status reel-quick-text-overlay-worker
+```
+
 ## Prerequisite Software Installation
 
 ### Backend Installation
