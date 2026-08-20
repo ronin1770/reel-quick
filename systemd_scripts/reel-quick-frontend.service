@@ -1,0 +1,18 @@
+# /etc/systemd/system/reel-quick-frontend.service
+
+[Unit]
+Description=Reel Quick Next.js Frontend
+After=network.target reel-quick-backend.service
+
+[Service]
+Type=simple
+User=ronin1770
+WorkingDirectory=/usr/local/development/reel-quick/frontend
+
+ExecStart=/usr/bin/npm run dev
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

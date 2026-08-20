@@ -1,0 +1,19 @@
+# /etc/systemd/system/reel-quick-text-overlay-worker.service
+
+[Unit]
+Description=Reel Quick Text Overlay ARQ Worker
+After=network.target reel-quick-backend.service
+
+[Service]
+Type=simple
+User=ronin1770
+WorkingDirectory=/usr/local/development/reel-quick/reel-quick
+Environment="PATH=/usr/local/development/reel-quick/ig_venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+ExecStart=/usr/local/development/reel-quick/ig_venv/bin/arq backend.workers.text_overlay_worker.WorkerSettings
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

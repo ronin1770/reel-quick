@@ -1,0 +1,19 @@
+# /etc/systemd/system/reel-quick-video-worker.service
+
+[Unit]
+Description=Reel Quick Video Maker ARQ Worker
+After=network.target reel-quick-backend.service
+
+[Service]
+Type=simple
+User=ronin1770
+WorkingDirectory=/usr/local/development/reel-quick/reel-quick
+Environment="PATH=/usr/local/development/reel-quick/ig_venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+ExecStart=/usr/local/development/reel-quick/ig_venv/bin/arq backend.workers.video_maker.WorkerSettings
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
