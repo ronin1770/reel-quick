@@ -11,6 +11,15 @@ Built with FastAPI, Next.js, Redis/ARQ and FFmpeg.
 
 Self-hosted • No login required • Developer-friendly • MIT licensed
 
+## 🎬 Demo
+
+<p align="center">
+  <img
+    src="docs/reel-quick-demo.gif"
+    alt="Reel Quick Demo"
+    width="1000"
+  />
+</p>
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-green)
