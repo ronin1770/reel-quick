@@ -1,4 +1,6 @@
-# Reel Quick – Open Source Instagram Reels Generator (FastAPI + Next.js + ARQ)
+# Reel Quick
+
+### Open-source automation platform for creating Instagram Reels, TikTok videos and YouTube Shorts
 
 ![Project Logo](frontend/public/logo-rectangle.jpg)
 
