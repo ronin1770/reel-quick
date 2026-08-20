@@ -4,9 +4,12 @@
 
 ![Project Logo](frontend/public/logo-rectangle.jpg)
 
-🚀 **Reel Quick** is an open-source Instagram reels generator built with FastAPI, Next.js, and ARQ for high-performance async video processing.
+🚀 **Reel Quick** helps creators and developers turn video clips into polished short-form
+videos using trimming, stitching, text overlays, voice tools, themes and transitions.
 
-It enables developers and creators to automate reel creation workflows including video stitching, trimming, and text overlays—without authentication or external dependencies.
+Built with FastAPI, Next.js, Redis/ARQ and FFmpeg.
+
+Self-hosted • No login required • Developer-friendly • MIT licensed
 
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
@@ -16,21 +19,37 @@ It enables developers and creators to automate reel creation workflows including
 ![GitHub Issues](https://img.shields.io/github/issues/ronin1770/reel-quick)
 ---
 
-### 🔑 Keywords
+## ✨ Features
 
-- instagram reels automation  
-- video text overlay python  
-- async video processing  
-- ffmpeg overlay tool  
-- reels generator API  
+🎬 **Reel Creator**
+Trim, arrange and merge multiple video clips into short-form videos.
 
-### ✨ Key Features
+📝 **Text Overlays**
+Add customizable text and captions directly to generated videos.
 
-* Upload, trim, and merge multiple video files
-* Fast, asynchronous video processing
-* Clean web-based interface for reel creation
-* No authentication or third-party dependencies
-* Completely free and open source
+🎙️ **Voice Tools**
+Create and integrate custom voice/audio content into videos.
+
+🎞️ **Video Transitions**
+Add FFmpeg-powered transitions between scenes.
+
+🎨 **Themes**
+Apply reusable visual styles to video projects.
+
+⚡ **Async Rendering**
+Redis + ARQ workers handle long-running video processing outside API requests.
+
+🖥️ **Web Interface**
+Manage video workflows through a Next.js frontend.
+
+🔌 **REST API**
+Automate video generation using FastAPI endpoints.
+
+🛠️ **Worker Control Panel**
+Monitor and control background processing services.
+
+🏠 **Self-hosted**
+Run the complete video generation stack on your own infrastructure.
 
 ### 🛠️ Tech Stack
 
@@ -44,6 +63,23 @@ It enables developers and creators to automate reel creation workflows including
 
 This project is **free to use**, modify, and extend under an open-source license.
 
+## 👥 Who Is Reel Quick For?
+
+### Content Creators
+Create repeatable short-form content without manually editing every video.
+
+### Developers
+Build custom social-video workflows on top of an open-source FastAPI backend.
+
+### Social Media Agencies
+Automate repetitive editing and rendering workflows for multiple campaigns.
+
+### Automation Builders
+Integrate video rendering into agents, workflows, scripts and external applications.
+
+### Open-source Contributors
+Experiment with FFmpeg, Python video processing and modern async architectures.
+
 ## 💡 Why I Created This Repository
 
 I’m a **backend developer and DevOps engineer**, and I run a motivation-themed Instagram page (**@motivation_nitrous**). Creating content for the page typically involves stitching together multiple video clips to produce short, engaging reels.
@@ -51,6 +87,36 @@ I’m a **backend developer and DevOps engineer**, and I run a motivation-themed
 Initially, I handled this workflow using **JSON configuration files in VS Code**. While functional, the process quickly became **time-consuming and inefficient**. Each reel required manually selecting files, copying paths, editing JSON structures, and fine-tuning scene boundaries to get the desired result. As content volume grew, this approach no longer scaled.
 
 This repository was created to **automate and streamline the reel-creation workflow**, replacing repetitive manual steps with a faster, more intuitive system—without sacrificing flexibility or control.
+
+---
+## Architecture
+
+                 ┌────────────────┐
+                 │ Next.js UI     │
+                 └───────┬────────┘
+                         │
+                         ▼
+                 ┌────────────────┐
+                 │ FastAPI API    │
+                 └───────┬────────┘
+                         │
+              ┌──────────┴─────────┐
+              ▼                    ▼
+        ┌──────────┐         ┌──────────┐
+        │ MongoDB  │         │ Redis    │
+        └──────────┘         └────┬─────┘
+                                  │
+                         ┌────────▼────────┐
+                         │ ARQ Workers     │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │ FFmpeg/MoviePy  │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                           Generated Reel
 
 ---
 
